@@ -1,0 +1,241 @@
+# Beta Testing Personas
+# Each persona represents a distinct user archetype with specific
+# platform, experience level, and testing focus.
+# Named after the Fellowship of the Ring (+ Bilbo).
+
+[frodo]
+name = "Frodo"
+title = "Linux Newcomer"
+platform = "ubuntu-24.04"
+dockerfile = "generic.Dockerfile"
+experience = "beginner"
+shells = ["nushell"]
+profile = "full"
+setup_commands = [
+  "bash /opt/my-shell-repo/install.sh",
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell nushell",
+]
+setup_env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+description = """
+First time using a non-bash shell. Has never customized a shell before.
+Follows the README literally. Has git, curl, Python but nothing else.
+No existing ~/.config/nushell/ directory. Tests the greenfield first install path.
+"""
+personality = """
+Patient but easily confused by jargon. Will read error messages carefully.
+Expects things to "just work" from the README instructions.
+Will flag unclear documentation or unhelpful error messages.
+"""
+
+[merry]
+name = "Merry"
+title = "Fedora Developer"
+platform = "fedora-41"
+dockerfile = "merry.Dockerfile"
+experience = "intermediate"
+shells = ["nushell", "xonsh"]
+profile = "full"
+setup_commands = [
+  "bash /opt/my-shell-repo/install.sh",
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell all",
+]
+setup_env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+description = """
+Fedora 41 workstation. Uses dnf for package management.
+Cares about shell startup time. Has existing dotfiles.
+Tests RPM-based distro support and both shells.
+"""
+personality = """
+Pragmatic developer who values speed. Will benchmark startup time.
+Notices when things assume apt/dpkg. Expects dnf-based systems to work.
+"""
+
+[pippin]
+name = "Pippin"
+title = "openSUSE Power User"
+platform = "opensuse-tumbleweed"
+dockerfile = "pippin.Dockerfile"
+experience = "advanced"
+shells = ["nushell"]
+profile = "full"
+setup_commands = [
+  "bash /opt/my-shell-repo/install.sh",
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell nushell",
+]
+setup_env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+description = """
+openSUSE Tumbleweed rolling release. Uses zypper for package management.
+Wants Nerd Fonts and oh-my-posh for a polished terminal.
+Tests rolling distro support, idempotent re-installs, and lifecycle.
+"""
+personality = """
+Expects a polished experience. Will test idempotent re-installs.
+Pays attention to font integration and oh-my-posh theming.
+Notices when scripts assume apt or yum instead of zypper.
+"""
+
+[sam]
+name = "Sam"
+title = "DevOps Engineer"
+platform = "arch-linux"
+dockerfile = "sam.Dockerfile"
+experience = "expert"
+shells = ["nushell", "xonsh"]
+profile = "full"
+setup_commands = [
+  "bash /opt/my-shell-repo/install.sh",
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell nushell",
+]
+setup_env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+description = """
+Arch Linux with full dev tools. Has rustup, cargo, docker, kubectl.
+Uses docker/k8s aliases daily. Compiles nushell plugins from source.
+Tests plugin compilation, atuin integration, and carapace completions.
+"""
+personality = """
+Opinionated about tool choices. Will try edge cases not in the docs.
+Expects everything to be configurable. Will inspect generated config files.
+Finds it unacceptable if a tool silently fails.
+"""
+
+[bilbo]
+name = "Bilbo"
+title = "Data Scientist"
+platform = "ubuntu-22.04"
+dockerfile = "bilbo.Dockerfile"
+experience = "intermediate"
+shells = ["xonsh"]
+profile = "full"
+setup_commands = [
+  "bash /opt/my-shell-repo/install.sh",
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell xonsh",
+]
+setup_env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+description = """
+Ubuntu 22.04. Primarily uses xonsh for its Python integration.
+Has conda, jupyter, and data science tools installed.
+Tests xonsh-specific features, Python interop, and xontrib loading.
+"""
+personality = """
+Python-first thinker. Values xonsh's ability to mix shell and Python.
+Will test user-custom.xsh preservation across deploys.
+Notices if xonsh startup is slow or if xontribs fail to load.
+"""
+
+[gimli]
+name = "Gimli"
+title = "Minimalist Server Admin"
+platform = "debian-12-minimal"
+dockerfile = "gimli.Dockerfile"
+experience = "advanced"
+shells = ["nushell"]
+profile = "minimal"
+setup_commands = [
+  "bash /opt/my-shell-repo/install.sh",
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell nushell",
+]
+setup_env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+description = """
+Headless Debian server. No curl (only wget). No X11/Wayland.
+No oh-my-posh or Nerd Fonts needed. Uses --profile minimal.
+Tests wget fallback and that minimal profile disables unnecessary integrations.
+"""
+personality = """
+Opinionated about minimal installs. Will notice if unnecessary tools are
+downloaded or if the install pulls in too many dependencies. Cares about
+disk space and network usage. Will verify that disabled features are truly disabled.
+"""
+
+[aragorn]
+name = "Aragorn"
+title = "Corporate Developer"
+platform = "ubuntu-22.04"
+dockerfile = "aragorn.Dockerfile"
+experience = "intermediate"
+shells = ["nushell"]
+profile = "full"
+setup_commands = [
+  "bash /opt/my-shell-repo/install.sh",
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell nushell",
+]
+setup_env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+description = """
+Ubuntu 22.04 LTS behind a corporate proxy. Network access is restricted.
+Always runs --dry-run first before committing to changes.
+Tests graceful failure when tools can't be downloaded.
+"""
+personality = """
+Cautious and methodical. Always previews before applying.
+Values clear error messages when things fail due to network restrictions.
+Wants to know exactly what will change before it changes.
+"""
+
+[legolas]
+name = "Legolas"
+title = "ARM Tinkerer"
+platform = "debian-arm64"
+dockerfile = "legolas.Dockerfile"
+docker_platform = "linux/arm64"
+experience = "intermediate"
+shells = ["nushell"]
+profile = "full"
+setup_commands = [
+  "bash /opt/my-shell-repo/install.sh",
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell nushell",
+]
+setup_env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+description = """
+Raspberry Pi 5 running Debian ARM64. Limited CPU and RAM.
+Tests aarch64 binary detection, ARM-specific tool availability.
+Some tools may not have ARM builds.
+"""
+personality = """
+Patient with slow builds. Understands hardware limitations.
+Will flag tools that don't provide ARM binaries.
+Notices if install scripts assume x86_64.
+"""
+
+[boromir]
+name = "Boromir"
+title = "Config Tinkerer"
+platform = "ubuntu-24.04"
+dockerfile = "generic.Dockerfile"
+experience = "advanced"
+shells = ["nushell", "xonsh"]
+profile = "full"
+setup_commands = ["bash /opt/my-shell-repo/install.sh"]
+setup_env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+description = """
+Power user who customizes everything. Uses aliases.local.toml,
+settings.local.toml, and user-custom.nu extensively.
+Tests backup/rollback, profile switching, and config validation.
+"""
+personality = """
+Curious and thorough. Will push the config system to its limits.
+Tests that local overrides survive deploys and that rollback works.
+Expects clear validation errors when config is malformed.
+"""
+
+[gandalf]
+name = "Gandalf"
+title = "CI/CD Automator"
+platform = "all"
+dockerfile = "generic.Dockerfile"
+experience = "expert"
+shells = ["nushell", "xonsh"]
+profile = "full"
+setup_commands = [
+  "bash /opt/my-shell-repo/install.sh",
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell all",
+]
+setup_env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+description = """
+Automates my-shell in CI pipelines. Tests non-interactive install,
+idempotency, exit codes, and parseable output.
+Runs on multiple platforms via GitHub Actions.
+"""
+personality = """
+Automation-minded. Every command must have a predictable exit code.
+Will test that --help always exits 0 and that failures exit non-zero.
+Expects structured, parseable output from status/config/detect commands.
+"""

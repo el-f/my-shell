@@ -1,0 +1,114 @@
+[project]
+name = "my-shell"
+version = "1.0.0"
+description = "Cross-platform shell configuration manager for Nushell and xonsh"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Elazar Fine" }]
+keywords = ["shell", "config", "nushell", "xonsh", "cross-platform", "dotfiles"]
+requires-python = ">=3.14"
+dependencies = ["typer>=0.26", "rich>=15.0"]
+classifiers = [
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Topic :: System :: Shells",
+  "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://github.com/el-f/my-shell"
+Repository = "https://github.com/el-f/my-shell"
+
+[project.scripts]
+my-shell = "core.cli:app"
+
+[build-system]
+requires = ["hatchling>=1.31.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+include = ["/core", "/config", "/shells", "/README.md", "/LICENSE"]
+
+# core/ resolves config/ and shells/ as siblings, so the wheel must keep that layout.
+[tool.hatch.build.targets.wheel]
+only-include = ["core", "config", "shells"]
+
+[dependency-groups]
+dev = [
+  "pytest>=7.0",
+  "ruff>=0.8.0",
+  "pytest-cov>=7.0.0",
+  "mypy>=1.10",
+  "pydantic>=2.0",
+  "jinja2>=3.0",
+  "docker>=7.0",
+  "hypothesis>=6.0",
+  "mutmut>=3.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "integration: tests with realistic subprocess/filesystem simulation",
+  "e2e: end-to-end tests that run real shell interpreters (slow, may skip)",
+  "slow: tests that take a long time (e.g. cargo plugin compilation), skipped in pre-commit",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "W",   # pycodestyle warnings
+  "F",   # pyflakes
+  "I",   # isort
+  "UP",  # pyupgrade
+  "B",   # flake8-bugbear
+  "SIM", # flake8-simplify
+  "PIE", # flake8-pie
+  "RUF", # ruff-specific rules
+]
+ignore = [
+  "E501",   # line too long (handled by ruff format)
+  "SIM108", # ternary operator (not always clearer)
+  "SIM112", # capitalized env vars (Windows uses mixed-case like PSModulePath)
+]
+fixable = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+"core/cli.py" = ["B008"] # typer.Option() in defaults is standard Typer pattern
+
+[tool.ruff.lint.isort]
+known-first-party = ["core"]
+
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["core"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+# fail-under compares round(total, precision); at 0 a 94.5% run passes a 95 gate.
+precision = 2
+
+[tool.mutmut]
+# Mutation testing measures whether the suite would catch a bug, not just run
+# the line. mutmut mutates core/ and re-runs pytest; a surviving mutant means an
+# assertion is missing. Run via `mise mutation` (Linux/macOS/WSL -- mutmut has no
+# native Windows support). Not wired into CI.
+source_paths = ["core"]
+do_not_mutate = ["core/__init__.py"]

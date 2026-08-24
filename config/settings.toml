@@ -1,0 +1,36 @@
+[shells]
+nushell = true
+xonsh = false
+
+[oh-my-posh]
+theme = "jblab_2021"
+
+# Enable/disable integrations (default: true = auto-detect)
+# Set to false to explicitly disable an integration even if the tool is installed.
+[integrations]
+oh-my-posh = true
+zoxide = true
+atuin = true
+carapace = true
+mise = true
+
+# Enable/disable command groups (default: true)
+[commands]
+navigation = true
+fuzzy = true
+utilities = true
+sysinfo = true
+commands = true
+
+# Nerd Font settings (for oh-my-posh prompt icons)
+[fonts]
+nerd_font = "meslo" # Options: "meslo", "firacode"
+auto_install = true # Set false to skip font install during setup
+
+# Backup settings
+[backup]
+max_count = 5
+
+# When true, my-shell writes to your global git config (git config --global).
+[git]
+manage_global_config = false

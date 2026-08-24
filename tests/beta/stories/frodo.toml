@@ -1,0 +1,196 @@
+# Frodo -- Linux Newcomer
+# Greenfield first install on Ubuntu 24.04, follows README literally
+
+[[stories]]
+id = "frodo-01"
+title = "Fresh install via install.sh"
+description = "Run the install script on a fresh system with nothing pre-installed except git/curl"
+commands = ["bash /opt/my-shell-repo/install.sh"]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+expected_outcomes = [
+  "Exit code 0",
+  "uv gets installed",
+  "mise gets installed",
+  "Repository cloned to install dir",
+  "mise install completes",
+  "mise setup completes",
+  "Output contains a summary/success line indicating what was installed",
+]
+judge_criteria = [
+  "Was the output clear and easy to follow for a beginner?",
+  "Were there any confusing warnings or errors?",
+  "Did the banner/progress look professional?",
+]
+category = "install"
+
+[[stories]]
+id = "frodo-02"
+title = "CLI help output"
+description = "Run my-shell --help and verify all subcommands are listed"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell --help"]
+expected_outcomes = [
+  "Exit code 0",
+  "Lists subcommands: install, setup, render, deploy, install-tools, install-fonts, detect, plugins, status, update, doctor, benchmark, rollback, init, version, validate, config, uninstall",
+  "Output is readable and organized",
+]
+judge_criteria = [
+  "Are the subcommand descriptions clear for a newcomer?",
+  "Is there a logical grouping of commands?",
+]
+category = "cli"
+
+[[stories]]
+id = "frodo-03"
+title = "Platform detection"
+description = "Run my-shell detect and verify platform info is correct"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell detect"]
+expected_outcomes = [
+  "Exit code 0",
+  "Shows Linux as the OS",
+  "Shows correct architecture",
+]
+judge_criteria = [
+  "Is the output easy to understand?",
+  "Does it show all relevant platform info?",
+]
+category = "cli"
+
+[[stories]]
+id = "frodo-04"
+title = "First deploy with nushell"
+description = "Run setup --shell nushell for the first time"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+]
+expected_outcomes = [
+  "Exit code 0",
+  "Config files deployed to nushell config dir",
+  "Aliases rendered",
+]
+judge_criteria = [
+  "Was the output clear about what was deployed and where?",
+  "Were there any scary warnings?",
+]
+category = "deploy"
+
+[[stories]]
+id = "frodo-05"
+title = "Launch nushell and verify aliases"
+description = "Start nu with the deployed config and try some aliases"
+commands = [
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | where name == g | length'",
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | where name == gs | length'",
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | where name == ll | length'",
+]
+expected_outcomes = [
+  "Each query returns 1 (exactly one alias found per name)",
+  "No errors on shell startup",
+]
+judge_criteria = [
+  "Did the shell start without errors or warnings?",
+  "Are the aliases intuitive for a newcomer?",
+]
+category = "integration"
+
+[[stories]]
+id = "frodo-06"
+title = "Health check with doctor"
+description = "Run my-shell doctor to check installation health"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell doctor"]
+expected_outcomes = [
+  "Exit code 0",
+  "Prints a table with check names and pass/warn/fail status",
+  "No critical failures",
+]
+judge_criteria = [
+  "Is the doctor output understandable for a beginner?",
+  "Does it clearly indicate what's OK and what needs attention?",
+]
+category = "cli"
+
+[[stories]]
+id = "frodo-07"
+title = "Version information"
+description = "Run my-shell version and verify output"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell version"]
+expected_outcomes = ["Exit code 0", "Shows version information"]
+judge_criteria = ["Is the version output clear and professional?"]
+category = "cli"
+
+[[stories]]
+id = "frodo-08"
+title = "Invalid shell error"
+description = "Try to setup an invalid shell and verify error handling"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell fish",
+]
+expected_outcomes = [
+  "Non-zero exit code",
+  "Clear error message about invalid shell choice",
+]
+judge_criteria = [
+  "Is the error message helpful for a beginner?",
+  "Does it suggest valid alternatives?",
+]
+category = "error-handling"
+
+[[stories]]
+id = "frodo-09"
+title = "Tool installation"
+description = "Run install-tools to install integration tools"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell install-tools"]
+expected_outcomes = ["Attempts to install tools", "Reports status of each tool"]
+judge_criteria = [
+  "Is it clear which tools are being installed?",
+  "Are failures explained clearly?",
+]
+category = "install"
+
+[[stories]]
+id = "frodo-10"
+title = "Run sysinfo in nushell"
+description = "Launch nushell and run the sysinfo custom command"
+commands = [
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'sysinfo'",
+]
+expected_outcomes = [
+  "Prints formatted system info including OS, shell version, and installed tools",
+  "No errors",
+]
+judge_criteria = [
+  "Is the sysinfo output useful and readable?",
+  "Does it show relevant system details?",
+]
+category = "integration"
+
+[[stories]]
+id = "frodo-11"
+title = "Validate success message"
+description = "Run validate on valid config and verify it prints reassuring output"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell validate"]
+expected_outcomes = [
+  "Shows success message mentioning files checked",
+  "Not empty output",
+]
+judge_criteria = [
+  "Does validate give clear confirmation that everything is OK?",
+]
+category = "cli"
+
+[[stories]]
+id = "frodo-12"
+title = "Commands overview for newcomer orientation"
+description = "Run the 'commands' custom command to see all available commands and aliases"
+commands = [
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'commands'",
+]
+expected_outcomes = [
+  "Shows custom commands list (fj, fx, fh, fk, port, clip, trash, sysinfo, etc.)",
+  "Shows alias group names (navigation, git, docker, etc.)",
+  "No errors",
+]
+judge_criteria = [
+  "Is this useful as a newcomer's orientation to available commands?",
+  "Are the descriptions helpful?",
+]
+category = "integration"

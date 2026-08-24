@@ -1,0 +1,171 @@
+# Legolas -- ARM Tinkerer
+# Raspberry Pi 5, ARM64 Debian, limited resources
+
+[[stories]]
+id = "legolas-01"
+title = "Install on aarch64 Debian"
+description = "Run install.sh on ARM64 Debian (Raspberry Pi OS)"
+commands = ["bash /opt/my-shell-repo/install.sh"]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+expected_outcomes = [
+  "Exit code 0",
+  "uv and mise install ARM64 binaries",
+  "No x86_64 assumptions",
+]
+judge_criteria = [
+  "Does the install script handle ARM64 correctly?",
+  "Are ARM64 binaries downloaded (not x86)?",
+]
+category = "install"
+
+[[stories]]
+id = "legolas-02"
+title = "Install nushell on ARM64"
+description = "Install nushell binary for aarch64"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell nushell",
+]
+expected_outcomes = [
+  "nushell installed for aarch64",
+  "Correct binary architecture",
+]
+judge_criteria = [
+  "Does it download the ARM64 nushell binary?",
+  "Is the binary functional on ARM?",
+]
+category = "install"
+
+[[stories]]
+id = "legolas-03"
+title = "Setup nushell on ARM"
+description = "Deploy nushell configuration on ARM64"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+]
+expected_outcomes = [
+  "Config deployed successfully",
+  "No architecture-specific issues",
+]
+judge_criteria = [
+  "Does setup work identically on ARM?",
+  "Any ARM-specific warnings?",
+]
+category = "deploy"
+
+[[stories]]
+id = "legolas-04"
+title = "Nushell loads on ARM"
+description = "Start nushell and verify it works on ARM64"
+commands = ["nu -c '\"hello from ARM\" | print'", "nu -c 'sys host | get name'"]
+expected_outcomes = ["Nushell runs on ARM64", "Basic commands work"]
+judge_criteria = [
+  "Does nushell perform acceptably on ARM?",
+  "Any noticeable performance issues?",
+]
+category = "integration"
+
+[[stories]]
+id = "legolas-05"
+title = "install-tools on ARM"
+description = "Install integration tools and check ARM availability"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell install-tools"]
+expected_outcomes = [
+  "install-tools reports status for each tool (installed, failed, skipped)",
+  "Graceful messages for tools without ARM64 builds",
+]
+judge_criteria = [
+  "Does it clearly indicate ARM64 compatibility?",
+  "Are missing ARM builds flagged helpfully?",
+]
+category = "install"
+
+[[stories]]
+id = "legolas-06"
+title = "Benchmark on ARM"
+description = "Run benchmark to measure startup time on ARM"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell benchmark"]
+expected_outcomes = [
+  "Prints numeric startup time in milliseconds",
+  "Shows startup time",
+]
+judge_criteria = [
+  "Is the benchmark meaningful on limited hardware?",
+  "Are the results reasonable for ARM?",
+]
+category = "performance"
+
+[[stories]]
+id = "legolas-07"
+title = "Doctor on ARM"
+description = "Run health check on ARM64 system"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell doctor"]
+expected_outcomes = ["Doctor completes", "ARM64 architecture reported"]
+judge_criteria = [
+  "Does doctor recognize ARM64?",
+  "Are ARM-specific limitations noted?",
+]
+category = "cli"
+
+[[stories]]
+id = "legolas-08"
+title = "xonsh via pip fallback"
+description = "Install xonsh via pip when no binary available"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell xonsh",
+]
+expected_outcomes = [
+  "xonsh installed (possibly via pip)",
+  "Pip fallback works on ARM",
+]
+judge_criteria = [
+  "Is the pip fallback automatic?",
+  "Does it handle ARM-specific pip issues?",
+]
+category = "install"
+
+[[stories]]
+id = "legolas-09"
+title = "Detect aarch64"
+description = "Verify platform detection shows aarch64"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell detect"]
+expected_outcomes = [
+  "Shows aarch64/arm64 architecture",
+  "OS detected correctly",
+]
+judge_criteria = [
+  "Is the architecture correctly identified?",
+  "Does it distinguish arm64 from armv7?",
+]
+category = "cli"
+
+[[stories]]
+id = "legolas-10"
+title = "Plugin status on ARM"
+description = "Check plugin status on ARM64"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell plugins status"]
+expected_outcomes = [
+  "Shows plugin status",
+  "Notes ARM64 compilation requirements",
+]
+judge_criteria = [
+  "Does it warn about longer compile times on ARM?",
+  "Are plugin availability issues noted?",
+]
+category = "plugins"
+
+[[stories]]
+id = "legolas-11"
+title = "Modern replacement aliases defined"
+description = "Verify modern replacement aliases are defined even if underlying tools aren't installed"
+commands = [
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | where name in [ls ll la lt grep cat ps du df sed] | length'",
+]
+expected_outcomes = [
+  "Returns 10 (all modern replacement aliases defined)",
+  "Aliases are defined regardless of whether underlying tools (eza, rg, etc.) are installed",
+]
+judge_criteria = [
+  "Are all modern replacement aliases present?",
+  "Do they exist even when the real tool is missing?",
+]
+category = "integration"

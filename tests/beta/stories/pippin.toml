@@ -1,0 +1,170 @@
+# Pippin -- openSUSE Power User
+# openSUSE Tumbleweed, zypper, Nerd Fonts, oh-my-posh, lifecycle
+
+[[stories]]
+id = "pippin-01"
+title = "Install on openSUSE Tumbleweed"
+description = "Run install.sh on openSUSE rolling release"
+commands = ["bash /opt/my-shell-repo/install.sh"]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+expected_outcomes = [
+  "Exit code 0",
+  "uv installed (via astral.sh)",
+  "mise installed",
+  "Repository cloned",
+  "Setup completes",
+]
+judge_criteria = [
+  "Does install.sh work on a zypper-based distro?",
+  "Are there any apt/yum assumptions that break?",
+]
+category = "install"
+
+[[stories]]
+id = "pippin-02"
+title = "Idempotent re-install"
+description = "Run install.sh again on existing installation"
+commands = ["bash /opt/my-shell-repo/install.sh"]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+expected_outcomes = [
+  "Exit code 0",
+  "Detects existing installation",
+  "Updates via git pull",
+  "No duplicate installs",
+]
+judge_criteria = [
+  "Is it clear that this is an update, not a fresh install?",
+  "Does it handle already-installed tools gracefully?",
+]
+category = "install"
+
+[[stories]]
+id = "pippin-03"
+title = "Setup nushell on openSUSE"
+description = "Deploy nushell configuration on openSUSE"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+]
+expected_outcomes = [
+  "Config deployed to ~/.config/nushell/",
+  "Paths handled correctly on openSUSE",
+]
+judge_criteria = [
+  "Does setup work on openSUSE without issues?",
+  "Any distro-specific path problems?",
+]
+category = "deploy"
+
+[[stories]]
+id = "pippin-04"
+title = "oh-my-posh and Nerd Font install"
+description = "Install oh-my-posh and a Nerd Font for prompt theming"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell install-tools",
+  "cd /root/my-shell && mise exec -- uv run my-shell install-fonts",
+]
+expected_outcomes = [
+  "oh-my-posh installation attempted",
+  "Font installation attempted",
+]
+judge_criteria = [
+  "Does tool installation work on openSUSE?",
+  "Is the font installation process clear?",
+]
+category = "install"
+
+[[stories]]
+id = "pippin-05"
+title = "Doctor check on openSUSE"
+description = "Run health checks on openSUSE installation"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell doctor"]
+expected_outcomes = [
+  "Health check completes",
+  "Prints a table with check names and pass/warn/fail status",
+]
+judge_criteria = [
+  "Does doctor work on openSUSE?",
+  "Are any zypper-specific issues flagged appropriately?",
+]
+category = "cli"
+
+[[stories]]
+id = "pippin-06"
+title = "Aliases loaded in nushell"
+description = "Verify aliases work correctly on openSUSE"
+commands = [
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | length'",
+]
+expected_outcomes = ["Aliases count is > 0", "No errors on startup"]
+judge_criteria = [
+  "Do aliases load without distro-specific issues?",
+  "Are there any openSUSE-only alias problems?",
+]
+category = "integration"
+
+[[stories]]
+id = "pippin-07"
+title = "Plugin status without cargo"
+description = "Check plugin status when cargo/rustup is not installed"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell plugins status"]
+expected_outcomes = [
+  "Shows plugin status",
+  "Graceful message about cargo not being available",
+]
+judge_criteria = [
+  "Is the message about missing cargo helpful?",
+  "Does it suggest how to install cargo?",
+]
+category = "cli"
+
+[[stories]]
+id = "pippin-08"
+title = "Uninstall then re-setup"
+description = "Uninstall deployed configs then re-setup"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell uninstall --shell nushell",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+]
+expected_outcomes = [
+  "Uninstall removes deployed configs",
+  "Re-setup works cleanly",
+]
+judge_criteria = [
+  "Is uninstall thorough?",
+  "Does re-setup work without leftover state?",
+]
+category = "lifecycle"
+
+[[stories]]
+id = "pippin-09"
+title = "Status before and after deploy"
+description = "Check status shows correct state before and after deployment"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell status",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+  "cd /root/my-shell && mise exec -- uv run my-shell status",
+]
+expected_outcomes = [
+  "First status shows not deployed or out of date",
+  "After deploy, status shows up to date",
+]
+judge_criteria = [
+  "Is the status output clearly different before and after?",
+  "Is the deployed vs current comparison easy to read?",
+]
+category = "cli"
+
+[[stories]]
+id = "pippin-10"
+title = "Benchmark on openSUSE"
+description = "Run benchmark to measure startup time"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell benchmark"]
+expected_outcomes = [
+  "Prints numeric startup time in milliseconds",
+  "Benchmark completes without errors",
+]
+judge_criteria = [
+  "Does the benchmark work on openSUSE?",
+  "Are the results presented clearly?",
+]
+category = "performance"

@@ -1,0 +1,12 @@
+if command -v mise >/dev/null 2>&1; then
+    eval "$(mise activate bash)"
+    eval "$(mise hook-env -s bash 2>/dev/null)"
+
+    # mise shellcheck backend on Windows puts the binary at the install root
+    # (no bin/ subdir), so mise can't resolve it via shims. Add it to PATH directly.
+    _sc_dir="$(mise where shellcheck 2>/dev/null)"
+    if [ -n "$_sc_dir" ] && [ -d "$_sc_dir" ]; then
+        export PATH="$_sc_dir:$PATH"
+    fi
+    unset _sc_dir
+fi

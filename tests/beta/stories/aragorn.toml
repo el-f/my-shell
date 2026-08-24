@@ -1,0 +1,168 @@
+# Aragorn -- Corporate Developer
+# Ubuntu 22.04 LTS behind corporate proxy, dry-run first, graceful failures
+
+[[stories]]
+id = "aragorn-01"
+title = "Install with local file:// repo"
+description = "Install using a local file:// repository (no network clone)"
+commands = ["bash /opt/my-shell-repo/install.sh"]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+expected_outcomes = [
+  "Exit code 0",
+  "Local clone works without network",
+  "Setup completes",
+]
+judge_criteria = [
+  "Does the file:// repo path work smoothly?",
+  "Is it documented that local repos are supported?",
+]
+category = "install"
+
+[[stories]]
+id = "aragorn-02"
+title = "install-tools with network unreachable"
+description = "Run install-tools when network is unavailable"
+commands = [
+  "cd /root/my-shell && env http_proxy=http://192.0.2.1:1 https_proxy=http://192.0.2.1:1 mise exec -- uv run my-shell install-tools 2>&1 || true",
+]
+expected_outcomes = [
+  "Graceful failure for each tool",
+  "Clear error messages about network",
+  "Does not crash",
+]
+judge_criteria = [
+  "Are network failures reported clearly?",
+  "Does it continue trying other tools after one fails?",
+]
+category = "error-handling"
+
+[[stories]]
+id = "aragorn-03"
+title = "Doctor with most tools missing"
+description = "Run doctor when most optional tools are not installed"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell doctor"]
+expected_outcomes = [
+  "Doctor completes",
+  "Missing tools listed as warnings, not errors",
+  "Core functionality still marked as OK",
+]
+judge_criteria = [
+  "Does doctor distinguish required vs optional?",
+  "Is the output reassuring that the core works?",
+]
+category = "cli"
+
+[[stories]]
+id = "aragorn-04"
+title = "Dry-run before deploy"
+description = "Run setup --dry-run to preview what would change"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell deploy --dry-run",
+]
+expected_outcomes = [
+  "Shows what files would be created/modified",
+  "No actual changes made",
+]
+judge_criteria = [
+  "Does the preview list every file deploy would write?",
+  "Can a cautious user trust this preview?",
+]
+category = "deploy"
+
+[[stories]]
+id = "aragorn-05"
+title = "Setup after dry-run"
+description = "Run actual setup after previewing with dry-run"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+]
+expected_outcomes = ["Setup completes", "Changes match what dry-run predicted"]
+judge_criteria = [
+  "Does the output match the dry-run preview?",
+  "Is there confidence that dry-run was accurate?",
+]
+category = "deploy"
+
+[[stories]]
+id = "aragorn-06"
+title = "user-custom.nu not overwritten"
+description = "Verify user-custom.nu is preserved during deploy"
+commands = [
+  "mkdir -p ~/.config/nushell",
+  "echo '# my custom config' > ~/.config/nushell/user-custom.nu",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+  "cat ~/.config/nushell/user-custom.nu",
+]
+expected_outcomes = [
+  "user-custom.nu content preserved",
+  "Deploy does not touch user files",
+]
+judge_criteria = [
+  "Is it clearly documented that user-custom files are safe?",
+  "Would a cautious user feel confident deploying?",
+]
+category = "deploy"
+
+[[stories]]
+id = "aragorn-07"
+title = "Force deploy"
+description = "Run deploy --force to overwrite existing config"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell deploy --force"]
+expected_outcomes = [
+  "Force deploy completes",
+  "Overwrites existing configs",
+  "Backup created first",
+]
+judge_criteria = [
+  "Is there a warning about force deploy?",
+  "Is a backup automatically created?",
+]
+category = "deploy"
+
+[[stories]]
+id = "aragorn-08"
+title = "Rollback after bad deploy"
+description = "Roll back to previous config after a problematic deploy"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell rollback"]
+expected_outcomes = ["Shows available backups", "Can restore previous state"]
+judge_criteria = [
+  "Is the rollback process straightforward?",
+  "Can you verify what will be restored before committing?",
+]
+category = "lifecycle"
+
+[[stories]]
+id = "aragorn-09"
+title = "Font install with network failure"
+description = "Try to install fonts when network is unavailable"
+commands = [
+  "cd /root/my-shell && env http_proxy=http://192.0.2.1:1 https_proxy=http://192.0.2.1:1 mise exec -- uv run my-shell install-fonts 2>&1 || true",
+]
+expected_outcomes = [
+  "Prints network error message, exits non-zero, no Python traceback",
+  "Clear error about network/download failure",
+]
+judge_criteria = [
+  "Is the error message helpful?",
+  "Does it suggest alternatives (manual download)?",
+]
+category = "error-handling"
+
+[[stories]]
+id = "aragorn-10"
+title = "Validate with broken TOML"
+description = "Run validate after introducing a TOML syntax error"
+commands = [
+  "echo 'broken[toml' >> /root/my-shell/config/aliases.toml",
+  "cd /root/my-shell && mise exec -- uv run my-shell validate",
+]
+expected_outcomes = [
+  "Non-zero exit code",
+  "Clear error message about TOML syntax",
+  "Points to the specific file and line",
+]
+judge_criteria = [
+  "Is the error message precise enough to fix the issue?",
+  "Does it identify the specific file?",
+]
+category = "error-handling"

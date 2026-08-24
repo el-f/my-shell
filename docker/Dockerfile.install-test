@@ -1,0 +1,132 @@
+# syntax=docker/dockerfile:1
+# Multi-stage Dockerfile for testing install.sh end-to-end
+# Each stage tests a different install scenario.
+#
+# Usage:
+#   docker build -f docker/Dockerfile.install-test --secret id=github_token,env=GITHUB_TOKEN --target <stage> .
+#
+# Stages:
+#   test-fresh-curl       Fresh install with curl (default)
+#   test-idempotent       Re-run install on existing clone (git pull path)
+#   test-wget-fallback    Install using wget (no curl)
+#   test-no-git           Must fail gracefully when git is missing
+#   test-custom-dir       Install to custom directory via MY_SHELL_INSTALL_DIR
+
+# ── Shared base: create a local git repo from the build context ───
+# .dockerignore excludes .git, so we init a fresh repo for install.sh to clone.
+FROM ubuntu:24.04 AS repo-base
+
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+COPY . /tmp/my-shell-repo
+RUN cd /tmp/my-shell-repo \
+    && git init \
+    && git checkout -b main \
+    && git add -A \
+    && git -c user.name=ci -c user.email=ci@test commit -m "init"
+
+# ── Stage 1: Fresh install with curl ────────────────────────────
+FROM ubuntu:24.04 AS test-fresh-curl
+
+RUN apt-get update && apt-get install -y curl git && rm -rf /var/lib/apt/lists/*
+
+COPY --from=repo-base /tmp/my-shell-repo /tmp/my-shell-repo
+COPY install.sh /tmp/install.sh
+RUN chmod +x /tmp/install.sh && sed -i 's/\r$//' /tmp/install.sh
+
+# Clone from the local repo instead of GitHub
+ENV MY_SHELL_REPO=/tmp/my-shell-repo
+ENV MY_SHELL_BRANCH=main
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN /tmp/install.sh
+
+# Verify artifacts
+RUN test -d "$HOME/.local/share/my-shell/.git" \
+    && test -f "$HOME/.local/share/my-shell/mise.toml" \
+    && echo "PASS: fresh curl install"
+
+# Deep verification: CLI commands work and render produces output
+# mise/uv are installed by install.sh but PATH changes don't persist across RUN layers
+ENV PATH="/root/.local/share/mise/bin:/root/.local/bin:/root/.cargo/bin:${PATH}"
+ENV MISE_YES=1
+RUN cd "$HOME/.local/share/my-shell" \
+    && mise exec -- uv run my-shell --help >/dev/null \
+    && mise exec -- uv run my-shell detect >/dev/null \
+    && mise exec -- uv run my-shell validate >/dev/null \
+    && mise exec -- uv run my-shell render --shell nushell \
+    && test -s shells/nushell/aliases.nu \
+    && echo "PASS: deep verification (fresh-curl)"
+
+# ── Stage 2: Idempotent re-run (git pull path) ─────────────────
+FROM test-fresh-curl AS test-idempotent
+
+# Run installer again -- should hit the "existing installation" path
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN /tmp/install.sh
+
+RUN test -d "$HOME/.local/share/my-shell/.git" \
+    && echo "PASS: idempotent re-run"
+
+# ── Stage 3: wget fallback (no curl) ───────────────────────────
+FROM ubuntu:24.04 AS test-wget-fallback
+
+RUN apt-get update && apt-get install -y wget git && rm -rf /var/lib/apt/lists/*
+
+COPY --from=repo-base /tmp/my-shell-repo /tmp/my-shell-repo
+COPY install.sh /tmp/install.sh
+RUN chmod +x /tmp/install.sh && sed -i 's/\r$//' /tmp/install.sh
+
+ENV MY_SHELL_REPO=/tmp/my-shell-repo
+ENV MY_SHELL_BRANCH=main
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN /tmp/install.sh
+
+RUN test -d "$HOME/.local/share/my-shell/.git" \
+    && echo "PASS: wget fallback install"
+
+# Deep verification: CLI commands work and render produces output
+ENV PATH="/root/.local/share/mise/bin:/root/.local/bin:/root/.cargo/bin:${PATH}"
+ENV MISE_YES=1
+RUN cd "$HOME/.local/share/my-shell" \
+    && mise exec -- uv run my-shell --help >/dev/null \
+    && mise exec -- uv run my-shell detect >/dev/null \
+    && mise exec -- uv run my-shell validate >/dev/null \
+    && mise exec -- uv run my-shell render --shell nushell \
+    && test -s shells/nushell/aliases.nu \
+    && echo "PASS: deep verification (wget-fallback)"
+
+# ── Stage 4: No git -- must fail ────────────────────────────────
+FROM ubuntu:24.04 AS test-no-git
+
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+COPY install.sh /tmp/install.sh
+RUN chmod +x /tmp/install.sh && sed -i 's/\r$//' /tmp/install.sh
+
+# Expect failure -- script should exit non-zero because git is missing
+RUN /tmp/install.sh 2>&1 && exit 1 || echo "PASS: correctly failed without git (exit $?)"
+
+# ── Stage 5: Custom install directory ───────────────────────────
+FROM ubuntu:24.04 AS test-custom-dir
+
+RUN apt-get update && apt-get install -y curl git && rm -rf /var/lib/apt/lists/*
+
+COPY --from=repo-base /tmp/my-shell-repo /tmp/my-shell-repo
+COPY install.sh /tmp/install.sh
+RUN chmod +x /tmp/install.sh && sed -i 's/\r$//' /tmp/install.sh
+
+ENV MY_SHELL_REPO=/tmp/my-shell-repo
+ENV MY_SHELL_BRANCH=main
+ENV MY_SHELL_INSTALL_DIR=/opt/test-my-shell
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN /tmp/install.sh
+
+RUN test -d "/opt/test-my-shell/.git" \
+    && echo "PASS: custom directory install"
+
+# Deep verification: CLI commands work and render produces output
+ENV PATH="/root/.local/share/mise/bin:/root/.local/bin:/root/.cargo/bin:${PATH}"
+ENV MISE_YES=1
+RUN cd /opt/test-my-shell \
+    && mise exec -- uv run my-shell --help >/dev/null \
+    && mise exec -- uv run my-shell detect >/dev/null \
+    && mise exec -- uv run my-shell validate >/dev/null \
+    && mise exec -- uv run my-shell render --shell nushell \
+    && test -s shells/nushell/aliases.nu \
+    && echo "PASS: deep verification (custom-dir)"

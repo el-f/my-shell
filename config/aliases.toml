@@ -1,0 +1,79 @@
+# Alias Definitions (data-only)
+# Supports per-shell overrides via nushell/xonsh/xonsh_fn keys
+
+[navigation]
+".." = "cd .."
+"..." = "cd ../.."
+"...." = "cd ../../.."
+
+[modern_replacements]
+ls = { command = "eza --group-directories-first", comment = "eza instead of ls" }
+ll = { command = "eza -l --group-directories-first --git --icons", comment = "long listing with git status" }
+la = { command = "eza -la --group-directories-first --git --icons", comment = "long listing with hidden files" }
+lt = { command = "eza --tree --level=2 --icons", comment = "quick tree view" }
+grep = { command = "rg", comment = "ripgrep" }
+find = { command = "fd", comment = "fd instead of find" }
+cat = { command = "bat", comment = "bat with syntax highlighting" }
+ps = { command = "procs", comment = "procs instead of ps" }
+du = { command = "dust", comment = "dust instead of du" }
+df = { command = "duf", comment = "duf instead of df" }
+sed = { command = "sd", comment = "sd instead of sed" }
+
+[git]
+g = "git"
+gs = "git status"
+ga = "git add"
+gc = "git commit"
+gp = "git push"
+gl = "git pull"
+gd = "git diff"
+gds = "git diff --staged"
+glog = "git log --oneline --graph --decorate"
+lg = "lazygit"
+
+[listing]
+l = "ls"
+
+[clear]
+c = { command = "clear", xonsh_fn = "clear_screen" }
+cls = { command = "clear", xonsh_fn = "clear_screen" }
+
+[system_info]
+meminfo = { nushell = "sys mem", xonsh_fn = "platform_meminfo", comment = "Memory info" }
+cpuinfo = { nushell = "sys cpu", xonsh_fn = "platform_cpuinfo", comment = "CPU info" }
+
+[docker]
+d = "docker"
+dc = "docker compose"
+dps = "docker ps"
+di = "docker images"
+
+[kubectl]
+k = "kubectl"
+kg = "kubectl get"
+kd = "kubectl describe"
+kdel = "kubectl delete"
+
+[help]
+halp = { command = "tldr", comment = "simplified man pages" }
+
+[pueue]
+pqa = { command = "pueue add --", comment = "Add task to queue" }
+pqs = { command = "pueue status", comment = "Show queue status" }
+pql = { command = "pueue log", comment = "Show task output" }
+pqf = { command = "pueue follow", comment = "Follow task output" }
+pqk = { command = "pueue kill", comment = "Kill running task" }
+pqc = { command = "pueue clean", comment = "Remove finished tasks" }
+pqp = { command = "pueue pause", comment = "Pause task(s)" }
+pqr = { command = "pueue start", comment = "Resume paused task(s)" }
+pqd = { command = "pueued -d", comment = "Start pueue daemon" }
+
+[wrappers.fd]
+preferred = "fd"
+fallback = "fdfind"
+error = "fd not found (install fd or fd-find)"
+
+[wrappers.bat]
+preferred = "bat"
+fallback = "batcat"
+error = "bat not found (install bat or batcat)"

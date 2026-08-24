@@ -1,0 +1,145 @@
+# Tools track "latest" for convenience. To pin exact versions reproducibly
+# (avoid CI/dev version skew), lockfile = true tells mise to read/write
+# mise.lock -- run `mise install` once and commit mise.lock. Set GITHUB_TOKEN
+# to avoid GitHub API rate limits while resolving "latest".
+min_version = "2026.7.15"
+
+[settings]
+# Pin resolved tool versions to mise.lock (commit it) for reproducible installs.
+lockfile = true
+# mise >= 2026.6 gates [hooks] behind this; without it the enter hook is skipped.
+experimental = true
+# Keep tool installation explicit. Prompt/hooks must never spam installs or
+# mutate the environment just because you're sitting inside this repo.
+auto_install = false
+exec_auto_install = false
+not_found_auto_install = false
+
+[settings.task]
+# Flat task_run_auto_install is deprecated; mise 2027.2.0 removes it.
+run_auto_install = false
+
+[hooks]
+# Tolerate a missing .git (e.g. Docker build, tarball checkout) -- lefthook
+# install needs a repo; without one it should no-op, not fail the shell enter.
+enter = "lefthook install || true"
+
+[tools]
+# CI / Linting
+taplo = "latest"
+shellcheck = "latest"
+# Core
+fzf = "latest"
+fd = "latest"
+ripgrep = "latest"
+bat = "latest"
+# Navigation
+zoxide = "latest"
+yazi = "latest"
+# Shell enhancements
+"aqua:carapace-sh/carapace-bin" = "latest"
+"github:atuinsh/atuin" = "latest"
+# Prompt
+"aqua:JanDeDobbeleer/oh-my-posh" = "latest"
+# Modern replacements
+delta = "latest"
+"github:dalance/procs" = "latest"
+sd = "latest"
+dust = "latest"
+duf = "latest"
+# Productivity
+jq = "latest"
+gron = "latest"
+lazygit = "latest"
+"github:tldr-pages/tlrc" = "latest"
+# Developer
+lefthook = { version = "latest", postinstall = "lefthook install || echo ." }
+just = "latest"
+"github:Nukesor/pueue" = "latest"
+# Python (for my-shell itself + xonsh)
+python = "3.14"
+uv = "latest"
+
+[tasks.install-shells]
+description = "Install shell binaries (nushell, xonsh)"
+run = "uv run my-shell install"
+
+[tasks."install-shells:nushell"]
+description = "Install nushell"
+run = "uv run my-shell install --shell nushell"
+
+[tasks."install-shells:xonsh"]
+description = "Install xonsh"
+run = "uv run my-shell install --shell xonsh"
+
+[tasks.setup]
+description = "Sync deps + deploy shell configuration"
+run = ["uv sync --frozen", "uv run my-shell setup"]
+
+[tasks."setup:xonsh"]
+description = "Deploy xonsh configuration"
+run = "uv run my-shell setup --shell xonsh"
+
+[tasks."setup:nushell"]
+description = "Deploy nushell configuration"
+run = "uv run my-shell setup --shell nushell"
+
+[tasks."setup:all"]
+description = "Deploy all shell configurations"
+run = "uv run my-shell setup --shell all"
+
+[tasks.render]
+description = "Render aliases for all shells"
+run = "uv run my-shell render"
+
+[tasks.test]
+description = "Run tests"
+run = "uv run pytest"
+
+[tasks.mutation]
+description = "Mutation-test core files changed vs origin/main (Linux/macOS/WSL; mutmut has no native Windows)"
+run = '''
+files=$(git diff --name-only origin/main...HEAD -- 'core/*.py' 2>/dev/null)
+patterns=""
+# mutmut filters on dotted mutant names, so core/cli.py has to become core.cli.*
+for f in $files; do patterns="$patterns $(printf '%s' "${f%.py}" | tr '/' '.').*"; done
+if [ -n "$patterns" ]; then
+  echo "Mutation-testing changed core files:$patterns"
+  uv run mutmut run $patterns
+else
+  echo "No changed core/*.py vs origin/main -- running full core mutation."
+  uv run mutmut run
+fi
+'''
+
+[tasks.format]
+description = "Format Python code"
+run = "uv run ruff format core/ tests/"
+
+[tasks.lint]
+description = "Lint Python code"
+run = "uv run ruff check core/ tests/"
+
+[tasks."lint:fix"]
+description = "Lint and auto-fix Python code"
+run = "uv run ruff check --fix core/ tests/"
+
+[tasks.check]
+description = "Run all CI checks locally (lint, format, typecheck, fast tests)"
+run = [
+  "uv run ruff check core/ tests/",
+  "uv run ruff format --check core/ tests/",
+  "uv run mypy core/",
+  "uv run pytest -q -m 'not slow and not e2e'",
+]
+
+[tasks.ci]
+description = "Mirror the CI check job locally (adds lockfile check + build + full non-slow tests)"
+run = [
+  "uv run ruff check core/ tests/",
+  "uv run ruff format --check core/ tests/",
+  "uv run mypy core/",
+  "uv lock --check",
+  "uv build",
+  "uv run pytest -m 'not slow'",
+]

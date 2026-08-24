@@ -1,0 +1,188 @@
+# Bilbo -- Data Scientist
+# Ubuntu 22.04, xonsh focus, Python integration
+
+[[stories]]
+id = "bilbo-01"
+title = "Install on Ubuntu 22.04"
+description = "Run install.sh on Ubuntu 22.04"
+commands = ["bash /opt/my-shell-repo/install.sh"]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+expected_outcomes = [
+  "Exit code 0",
+  "Install completes successfully",
+  "uv and mise installed",
+]
+judge_criteria = [
+  "Is the install straightforward?",
+  "Are there any issues on Ubuntu 22.04?",
+]
+category = "install"
+
+[[stories]]
+id = "bilbo-02"
+title = "Install xonsh"
+description = "Install xonsh shell via my-shell"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell xonsh",
+]
+expected_outcomes = ["xonsh installed successfully", "Available on PATH"]
+judge_criteria = [
+  "Is the xonsh install straightforward?",
+  "Is the version appropriate?",
+]
+category = "install"
+
+[[stories]]
+id = "bilbo-03"
+title = "Setup xonsh"
+description = "Deploy xonsh configuration"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell xonsh",
+]
+expected_outcomes = ["xonsh config deployed", "Aliases rendered as .xsh"]
+judge_criteria = [
+  "Is the xonsh config structure clear?",
+  "Are the deployed files explained?",
+]
+category = "deploy"
+
+[[stories]]
+id = "bilbo-04"
+title = "xonsh Python integration"
+description = "Verify Python interop works in xonsh"
+commands = [
+  "xonsh -c 'import sys; print(sys.version)'",
+  "xonsh -c 'print(2 + 2)'",
+]
+expected_outcomes = ["Python code executes in xonsh", "No import errors"]
+judge_criteria = [
+  "Did both xonsh commands print Python output with exit code 0?",
+  "Does the deployed config interfere with Python imports?",
+]
+category = "integration"
+
+[[stories]]
+id = "bilbo-05"
+title = "xonsh sysinfo alias"
+description = "Run sysinfo command in xonsh"
+commands = ["xonsh --rc ~/.xonshrc -c 'sysinfo'"]
+expected_outcomes = [
+  "sysinfo command works in xonsh",
+  "Shows system info table with OS, shell version, and installed tools",
+]
+judge_criteria = [
+  "Is the output similar to nushell's sysinfo?",
+  "Does it show relevant system details?",
+]
+category = "integration"
+
+[[stories]]
+id = "bilbo-06"
+title = "Validate configuration"
+description = "Run validate to check config integrity"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell validate"]
+expected_outcomes = ["Validation passes", "All TOML files are valid"]
+judge_criteria = [
+  "Is the validation output clear?",
+  "Does it check all relevant files?",
+]
+category = "cli"
+
+[[stories]]
+id = "bilbo-07"
+title = "user-custom.xsh preserved across deploys"
+description = "Create a user-custom.xsh, redeploy, verify it survives"
+commands = [
+  "echo 'print(\"custom\")' > ~/.config/xonsh/user-custom.xsh",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell xonsh",
+  "cat ~/.config/xonsh/user-custom.xsh",
+]
+expected_outcomes = [
+  "user-custom.xsh content preserved after redeploy",
+  "Custom content is intact",
+]
+judge_criteria = [
+  "Is it clearly documented that user-custom files are preserved?",
+  "Is there a warning if it would be overwritten?",
+]
+category = "deploy"
+
+[[stories]]
+id = "bilbo-08"
+title = "Rollback xonsh config"
+description = "Roll back to a previous xonsh configuration"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell rollback --shell xonsh",
+]
+expected_outcomes = [
+  "Rollback shows available backups",
+  "Can restore a previous version",
+]
+judge_criteria = [
+  "Is the rollback process clear?",
+  "Can you preview what will be restored?",
+]
+category = "lifecycle"
+
+[[stories]]
+id = "bilbo-09"
+title = "Benchmark xonsh startup"
+description = "Measure xonsh startup time"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell benchmark --shell xonsh",
+]
+expected_outcomes = [
+  "Shows xonsh startup time",
+  "Numeric startup time in milliseconds is printed",
+]
+judge_criteria = [
+  "Is the xonsh startup time acceptable?",
+  "Are there suggestions for improvement?",
+]
+category = "performance"
+
+[[stories]]
+id = "bilbo-10"
+title = "Uninstall xonsh config with no-keep-custom"
+description = "Uninstall xonsh config without preserving custom files"
+commands = [
+  "cd /root/my-shell && echo y | mise exec -- uv run my-shell uninstall --shell xonsh --no-keep-custom",
+]
+expected_outcomes = [
+  "Deployed configs removed",
+  "user-custom.xsh also removed",
+  "Clear confirmation before destructive action",
+]
+judge_criteria = [
+  "Is there a confirmation prompt for destructive action?",
+  "Is it clear that custom files will be lost?",
+]
+category = "lifecycle"
+
+[[stories]]
+id = "bilbo-11"
+title = "Commands overview in xonsh"
+description = "Run the 'commands' function in xonsh to list available commands and aliases"
+commands = ["xonsh --rc ~/.xonshrc -c 'commands'"]
+expected_outcomes = [
+  "Shows custom commands list (fj, fx, fh, fk, port, clip, trash, sysinfo, etc.)",
+  "Shows alias categories",
+  "No errors",
+]
+judge_criteria = [
+  "Does the xonsh output match the nushell version?",
+  "Is it readable and useful?",
+]
+category = "integration"
+
+[[stories]]
+id = "bilbo-12"
+title = "Verify xontrib loading"
+description = "Start xonsh and check that xontribs load without errors"
+commands = ["xonsh --rc ~/.xonshrc -c 'print(\"xonsh started ok\")' 2>&1"]
+expected_outcomes = [
+  "Output contains 'xonsh started ok'",
+  "No xontrib import errors or warnings in combined output",
+]
+judge_criteria = ["Do all xontribs load cleanly?", "Any startup warnings?"]
+category = "integration"

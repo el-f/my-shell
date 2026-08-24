@@ -1,0 +1,65 @@
+# Local-only agent and editor config
+.claude/
+CLAUDE.md
+
+# Config overrides (local only)
+config/aliases.local.toml
+config/plugins.local.toml
+config/settings.local.toml
+
+# Test results
+test-results/
+test-results.xml
+*.log
+
+# OS-specific
+.DS_Store
+Thumbs.db
+desktop.ini
+nul
+
+# Editor-specific
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.bak
+.*.sw[op]
+.tmp-*/
+.pytest-run/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.pytest_cache/
+.pytest-tmp/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# uv
+.venv/
+
+# mise
+.mise.local.toml
+
+# Nushell history (if testing locally)
+.nu-hist
+
+# Beta test reports (generated output)
+tests/beta/reports/
+
+# Generated files (can be regenerated via `uv run my-shell setup`)
+shells/nushell/aliases.nu
+shells/xonsh/aliases.xsh

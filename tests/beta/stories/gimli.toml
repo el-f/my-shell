@@ -1,0 +1,199 @@
+# Gimli -- Minimalist Server Admin
+# Debian 12 minimal, wget only, no curl, minimal profile
+
+[[stories]]
+id = "gimli-01"
+title = "Install via wget (no curl)"
+description = "Run install.sh on a system with wget but no curl"
+commands = ["bash /opt/my-shell-repo/install.sh"]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+expected_outcomes = [
+  "Exit code 0",
+  "wget fallback used for uv and mise",
+  "Install completes without curl",
+]
+judge_criteria = [
+  "Did the wget path install without printing a curl error?",
+  "Are there any curl-specific assumptions that break?",
+]
+category = "install"
+
+[[stories]]
+id = "gimli-02"
+title = "Setup with minimal profile"
+description = "Deploy with minimal profile to avoid unnecessary integrations"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --profile minimal",
+]
+expected_outcomes = [
+  "Minimal profile applied",
+  "No oh-my-posh, no font downloads",
+  "Only essential aliases and settings",
+]
+judge_criteria = [
+  "Does minimal profile truly minimize the footprint?",
+  "Are disabled features truly disabled in the generated config?",
+]
+category = "deploy"
+
+[[stories]]
+id = "gimli-03"
+title = "oh-my-posh NOT loaded in minimal"
+description = "Verify oh-my-posh is not loaded in minimal profile"
+commands = [
+  "test -f ~/.config/nushell/config.nu && grep -c 'oh-my-posh' ~/.config/nushell/config.nu || echo 'file-missing-or-no-match'",
+  "test ! -f ~/.config/nushell/oh-my-posh.nu && echo 'no omp init file' || echo 'omp init file exists'",
+]
+expected_outcomes = [
+  "No oh-my-posh references in deployed config files",
+  "No oh-my-posh init file generated",
+]
+judge_criteria = [
+  "Is oh-my-posh completely absent from deployed config?",
+  "No warnings about missing oh-my-posh?",
+]
+category = "integration"
+
+[[stories]]
+id = "gimli-04"
+title = "Font install skipped"
+description = "Verify font installation is skipped or warns on headless server"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell install-fonts"]
+expected_outcomes = [
+  "Prints message about headless/no-display and exits without Python traceback",
+  "No crash on missing display",
+]
+judge_criteria = [
+  "Does it detect headless environment?",
+  "Is the message clear about why fonts aren't installed?",
+]
+category = "install"
+
+[[stories]]
+id = "gimli-05"
+title = "Doctor on minimal server"
+description = "Run doctor on a minimal server and verify checks are appropriate"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell doctor"]
+expected_outcomes = [
+  "Doctor completes",
+  "Disabled integrations shown as 'info' status, not 'warn' or 'fail'",
+  "Core checks pass",
+]
+judge_criteria = [
+  "Does doctor adjust expectations for minimal servers?",
+  "Are missing optional tools reported at appropriate severity?",
+]
+category = "cli"
+
+[[stories]]
+id = "gimli-06"
+title = "cat falls back to batcat"
+description = "Verify cat alias handles batcat (Debian's bat package name)"
+commands = [
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | where name == cat'",
+]
+expected_outcomes = [
+  "cat alias defined",
+  "Alias uses wrapper that falls back from bat to batcat automatically",
+]
+judge_criteria = [
+  "Does the alias handle Debian's batcat naming?",
+  "What happens when neither bat nor batcat exists?",
+]
+category = "integration"
+
+[[stories]]
+id = "gimli-07"
+title = "find falls back to fdfind"
+description = "Verify find alias handles fdfind (Debian's fd package name)"
+commands = [
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | where name == find'",
+]
+expected_outcomes = [
+  "find alias defined",
+  "Alias uses wrapper that falls back from fd to fdfind automatically",
+]
+judge_criteria = [
+  "Does the alias handle Debian's fdfind naming?",
+  "What happens when fd/fdfind is not installed?",
+]
+category = "integration"
+
+[[stories]]
+id = "gimli-08"
+title = "Custom install directory"
+description = "Install to a non-default directory"
+commands = ["bash /opt/my-shell-repo/install.sh"]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/opt/custom-my-shell" }
+expected_outcomes = [
+  "Installs to /opt/custom-my-shell",
+  "All paths reference custom directory",
+]
+judge_criteria = [
+  "Does everything work with a custom install dir?",
+  "Are there hardcoded default paths that break?",
+]
+category = "install"
+
+[[stories]]
+id = "gimli-09"
+title = "Update existing installation"
+description = "Run install.sh again to update"
+commands = ["bash /opt/my-shell-repo/install.sh"]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+expected_outcomes = [
+  "Detects existing install",
+  "Updates via git pull",
+  "Re-runs setup",
+]
+judge_criteria = [
+  "Is it clear that this is an update?",
+  "Is the update process fast?",
+]
+category = "install"
+
+[[stories]]
+id = "gimli-10"
+title = "Install without git"
+description = "Run install.sh on a system without git (temporarily hidden)"
+commands = [
+  "mv /usr/bin/git /usr/bin/git.hidden && bash /opt/my-shell-repo/install.sh; rc=$?; mv /usr/bin/git.hidden /usr/bin/git; exit $rc",
+]
+expected_outcomes = [
+  "Fails with clear error message",
+  "Non-zero exit code",
+  "Tells user to install git",
+]
+judge_criteria = [
+  "Is the error message immediately helpful?",
+  "Does it suggest how to install git?",
+]
+category = "error-handling"
+
+[[stories]]
+id = "gimli-11"
+title = "Font install skipped on headless (env)"
+description = "Verify install-fonts detects headless and skips gracefully"
+commands = [
+  "unset DISPLAY WAYLAND_DISPLAY && cd /root/my-shell && mise exec -- uv run my-shell install-fonts 2>&1",
+]
+expected_outcomes = [
+  "Graceful skip or completion without crash",
+  "No X11/display errors",
+]
+judge_criteria = ["Does it detect headless environment and skip appropriately?"]
+category = "install"
+
+[[stories]]
+id = "gimli-12"
+title = "Navigation aliases work"
+description = "Verify cd-based navigation aliases (.., ..., ....) are defined"
+commands = [
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | where name in [.. ... ....] | length'",
+]
+expected_outcomes = [
+  "Returns 3 (all three navigation aliases defined)",
+  "No errors",
+]
+judge_criteria = ["Are navigation aliases present and correctly defined?"]
+category = "integration"

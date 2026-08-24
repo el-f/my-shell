@@ -1,0 +1,731 @@
+name: Test My-Shell
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Superseded PR runs are cancelled; pushes to main always run to completion.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  MISE_HTTP_TIMEOUT: 60
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: 2026.8.6
+          install_args: "python uv taplo shellcheck"
+
+      - name: Cache uv
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
+
+      - name: Install Python dependencies
+        run: mise exec -- uv sync --frozen --group dev
+
+      - name: Ruff lint
+        run: mise exec -- uv run ruff check core/ tests/
+
+      - name: Ruff format
+        run: mise exec -- uv run ruff format --check core/ tests/
+
+      - name: Mypy type check
+        run: mise exec -- uv run mypy core/
+
+      - name: Check lock file freshness
+        run: mise exec -- uv lock --check
+
+      - name: Validate package build
+        run: mise exec -- uv build
+
+      # Without -r, pip-audit scans its own uvx environment, not this project's.
+      - name: pip-audit dependency scan
+        run: |
+          mise exec -- uv export --frozen --no-emit-project --all-groups -o "$RUNNER_TEMP/requirements-audit.txt"
+          mise exec -- uvx pip-audit --strict --desc -r "$RUNNER_TEMP/requirements-audit.txt"
+
+      - name: Validate TOML files
+        run: mise exec -- taplo check config/*.toml pyproject.toml mise.toml
+
+      - name: TOML format check
+        run: mise exec -- taplo fmt --check config/*.toml
+
+      - name: Shellcheck
+        run: git ls-files -z '*.sh' | xargs -0 mise exec -- shellcheck
+
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer | Where-Object Version -eq '1.25.0')) {
+            Install-Module -Name PSScriptAnalyzer -RequiredVersion 1.25.0 -Repository PSGallery -Force -Scope CurrentUser
+          }
+          $results = @(git ls-files '*.ps1' | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Severity Error })
+          if ($results) { $results | Format-Table; exit 1 }
+
+  test-linux:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: 2026.8.6
+          install_args: "python uv"
+
+      - name: Cache uv
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
+
+      - name: Install Python dependencies
+        run: |
+          mise exec -- uv sync --frozen --group dev
+
+      - name: Install platform tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xclip trash-cli
+
+      - name: Install integration tools via mise
+        run: mise install --locked
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check mise lock file freshness
+        run: git diff --exit-code mise.lock
+
+      - name: Run clean-install tests (before shell install)
+        run: mise exec -- uv run pytest -v -k "TestCleanInstall" --junitxml=test-results-clean.xml
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+          # Nushell installs from a GitHub release tarball here; without a token it is rate limited.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install shells for e2e tests
+        run: mise exec -- uv run my-shell install --shell all
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Only Linux installs every shell, so only Linux gates coverage.
+      - name: Run tests with coverage
+        run: mise exec -- uv run pytest -v -m "not slow" --junitxml=test-results.xml --cov=core --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=95
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+
+      # Doctor checks the deployed state; without this it reports a machine
+      # that was never set up.
+      - name: Deploy configs for doctor
+        run: mise exec -- uv run my-shell deploy
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+
+      # doctor exits 1 on any failure; this step is informational.
+      - name: Doctor report (JSON)
+        if: always()
+        run: mise exec -- uv run my-shell doctor --json > doctor-report.json || true
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+
+      - name: Prune uv cache
+        run: mise exec -- uv cache prune --ci
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: test-results-linux
+          path: |
+            test-results.xml
+            test-results-clean.xml
+            coverage.xml
+            doctor-report.json
+
+  test-windows:
+    needs: check
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: 2026.8.6
+          install_args: "python uv"
+
+      - name: Cache uv
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/AppData/Local/uv/cache
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
+
+      - name: Install Python dependencies
+        run: |
+          mise exec -- uv sync --frozen --group dev
+
+      - name: Validate install.ps1 syntax
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/install.ps1", [ref]$null, [ref]$errors)
+          if ($errors) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+
+      - name: Validate PS1 syntax (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          $errors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile(
+            "$PWD\install.ps1", [ref]$null, [ref]$errors)
+          $null = [System.Management.Automation.Language.Parser]::ParseFile(
+            "$PWD\scripts\verify-install.ps1", [ref]$null, [ref]$errors)
+          if ($errors) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+
+      # GitHub's Windows image ships no winget, so my-shell cannot install nushell here.
+      - name: Pre-install nushell via choco
+        run: choco install nushell -y
+
+      - name: Install shells for e2e tests
+        run: |
+          mise exec -- uv run my-shell install --shell all
+          $uvBin = mise exec -- uv tool dir --bin
+          echo "$uvBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: pwsh
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+
+      - name: Run tests with coverage
+        run: mise exec -- uv run pytest -v -m "not slow" --junitxml=test-results.xml --cov=core --cov-report=term-missing
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+
+      - name: Prune uv cache
+        run: mise exec -- uv cache prune --ci
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: test-results-windows
+          path: test-results.xml
+
+  test-macos:
+    needs: check
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # The runner image ships aws/tap untrusted; every brew call warns about it.
+      # --force also uninstalls aws-sam-cli, which no job here uses.
+      - name: Remove untrusted preinstalled taps
+        run: brew untap --force aws/tap || true
+
+      - name: Install mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: 2026.8.6
+          install_args: "python uv"
+
+      - name: Cache uv
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
+
+      - name: Install Python dependencies
+        run: |
+          mise exec -- uv sync --frozen --group dev
+
+      - name: Install integration tools via mise
+        run: mise install
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run clean-install tests (before shell install)
+        run: mise exec -- uv run pytest -v -k "TestCleanInstall" --junitxml=test-results-clean.xml
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+          # Nushell installs from a GitHub release tarball here; without a token it is rate limited.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install shells for e2e tests
+        run: mise exec -- uv run my-shell install --shell all
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests with coverage
+        run: mise exec -- uv run pytest -v -m "not slow" --junitxml=test-results.xml --cov=core --cov-report=term-missing
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+
+      - name: Prune uv cache
+        run: mise exec -- uv cache prune --ci
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: test-results-macos
+          path: |
+            test-results.xml
+            test-results-clean.xml
+
+  # Catches nu-version-sensitive breakage (parser deprecations, closure changes)
+  # one release before it reaches users who lag the current nushell.
+  test-nu-one-back:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: 2026.8.6
+          install_args: "python uv"
+
+      - name: Cache uv
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
+
+      - name: Install Python dependencies
+        run: mise exec -- uv sync --frozen --group dev
+
+      - name: Resolve previous nushell release
+        id: nu-prev
+        run: |
+          tag=$(gh api repos/nushell/nushell/releases --jq '[.[] | select(.prerelease == false)][1].tag_name')
+          test -n "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install previous nushell
+        run: mise exec -- uv run my-shell install --shell nushell
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+          MY_SHELL_NU_VERSION: ${{ steps.nu-prev.outputs.tag }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify the pinned version is the one installed
+        env:
+          NU_TAG: ${{ steps.nu-prev.outputs.tag }}
+        run: |
+          installed=$(nu --version)
+          test "$installed" = "$NU_TAG"
+
+      - name: Run nushell-facing tests
+        run: mise exec -- uv run pytest -v -m "not slow" -k "nushell" --junitxml=test-results.xml
+        env:
+          MY_SHELL_DIR: ${{ github.workspace }}
+
+      - name: Prune uv cache
+        run: mise exec -- uv cache prune --ci
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: test-results-nu-one-back
+          path: test-results.xml
+
+  test-docker:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Build and run Docker smoke test
+        run: docker compose -f docker/docker-compose.yml run --rm smoke
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-docker-e2e:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Run e2e CLI tests in Docker
+        run: |
+          docker compose -f docker/docker-compose.yml run --name e2e-runner \
+            e2e bash -c '
+              set -e
+              mise exec -- uv run pytest -v -k "TestCleanInstall" --junitxml=test-results-clean.xml
+              mise exec -- uv run my-shell install --shell all
+              mise exec -- uv run pytest -v -m "e2e" --deselect tests/test_e2e_cli.py::TestCleanInstall --junitxml=test-results.xml
+            '
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy test results from container
+        if: always()
+        run: |
+          docker cp e2e-runner:/home/ubuntu/my-shell/test-results.xml test-results.xml
+          docker rm e2e-runner || true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: test-results-docker-e2e
+          path: test-results.xml
+          if-no-files-found: error
+
+  # `render` reads config/ and shells/, so the wheel must carry them.
+  test-package:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: 2026.8.6
+          install_args: "python uv"
+
+      - name: Build the wheel
+        run: mise exec -- uv build --wheel
+
+      - name: Install the wheel into a clean environment
+        run: |
+          mise exec -- uv tool install dist/*.whl
+          mise exec -- uv tool dir --bin >> "$GITHUB_PATH"
+
+      - name: Run the installed console script
+        working-directory: ${{ runner.temp }}
+        run: |
+          my-shell --help
+          my-shell render --preview --shell nushell
+
+  test-install-script:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Fresh install (curl) + idempotent re-run
+        run: docker build -f docker/Dockerfile.install-test --secret id=github_token,env=GITHUB_TOKEN --target test-idempotent .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wget fallback
+        run: docker build -f docker/Dockerfile.install-test --secret id=github_token,env=GITHUB_TOKEN --target test-wget-fallback .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: No-git failure
+        run: docker build -f docker/Dockerfile.install-test --target test-no-git .
+
+      - name: Custom install directory
+        run: docker build -f docker/Dockerfile.install-test --secret id=github_token,env=GITHUB_TOKEN --target test-custom-dir .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-install-e2e:
+    needs: check
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: install.sh on Linux
+          - os: macos-latest
+            name: install.sh on macOS
+          - os: windows-latest
+            name: install.ps1 on Windows
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # On PRs, checkout creates a detached HEAD -- no named branch exists.
+      # The install scripts default MY_SHELL_BRANCH=main, so ensure it exists.
+      - name: Create branch for local clone
+        run: git checkout -B main
+
+      # The runner image ships aws/tap untrusted; every brew call warns about it.
+      # --force also uninstalls aws-sam-cli, which no job here uses.
+      - name: Remove untrusted preinstalled taps
+        if: runner.os == 'macOS'
+        run: brew untap --force aws/tap || true
+
+      - name: Run install.sh (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          export MY_SHELL_REPO="file://${{ github.workspace }}"
+          export MY_SHELL_INSTALL_DIR="$RUNNER_TEMP/my-shell-test"
+          bash install.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify install (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          export INSTALL_DIR="$RUNNER_TEMP/my-shell-test"
+          bash scripts/verify-install.sh
+
+      - name: Run install.ps1 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $workspace = "${{ github.workspace }}" -replace '\\', '/'
+          $env:MY_SHELL_REPO = "file:///$workspace"
+          $env:MY_SHELL_INSTALL_DIR = "$env:RUNNER_TEMP\my-shell-test"
+          & .\install.ps1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify install (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:INSTALL_DIR = "$env:RUNNER_TEMP\my-shell-test"
+          & "${{ github.workspace }}\scripts\verify-install.ps1"
+
+  test-summary:
+    needs: [check, test-linux, test-windows, test-macos, test-nu-one-back, test-docker, test-docker-e2e, test-package, test-install-script, test-install-e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: always()
+
+    steps:
+      - name: Download test results
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: test-results-*
+          merge-multiple: false
+
+      - name: Generate test summary
+        run: |
+          echo "# Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          python3 - << 'PYEOF'
+          import xml.etree.ElementTree as ET
+          import glob, os
+
+          summary_lines = []
+          summary_lines.append("| Platform | Tests | Passed | Failed | Errors | Skipped | Time | Status |")
+          summary_lines.append("|----------|-------|--------|--------|--------|---------|------|--------|")
+          totals = {"tests": 0, "passed": 0, "failures": 0, "errors": 0, "skipped": 0, "time": 0.0}
+          detail_lines = []
+
+          for xml_file in sorted(glob.glob("test-results-*/test-results.xml")):
+              platform = xml_file.split(os.sep)[0].replace("test-results-", "")
+              platform = {"linux": "Linux", "windows": "Windows", "macos": "macOS", "docker-e2e": "Docker E2E", "nu-one-back": "Nu (one back)"}.get(platform, platform.title())
+              tree = ET.parse(xml_file)
+              root = tree.getroot()
+              # pytest wraps results in <testsuites><testsuite .../>; counts live on <testsuite>
+              suite = root.find("testsuite") if root.tag == "testsuites" else root
+
+              tests = int(suite.attrib.get("tests", 0))
+              failures = int(suite.attrib.get("failures", 0))
+              errors = int(suite.attrib.get("errors", 0))
+              skipped = int(suite.attrib.get("skipped", 0))
+              passed = tests - failures - errors - skipped
+
+              elapsed = float(suite.attrib.get("time", 0))
+              status = "✅" if failures == 0 and errors == 0 else "❌"
+              summary_lines.append(f"| {platform} | {tests} | {passed} | {failures} | {errors} | {skipped} | {elapsed:.1f}s | {status} |")
+
+              totals["tests"] += tests
+              totals["passed"] += passed
+              totals["failures"] += failures
+              totals["errors"] += errors
+              totals["skipped"] += skipped
+              totals["time"] += elapsed
+
+              if failures > 0 or errors > 0:
+                  detail_lines.append("")
+                  detail_lines.append(f"<details><summary>❌ {platform} failures</summary>")
+                  detail_lines.append("")
+                  for testcase in root.iter("testcase"):
+                      failure = testcase.find("failure")
+                      error = testcase.find("error")
+                      if failure is not None or error is not None:
+                          name = testcase.attrib.get("classname", "") + "::" + testcase.attrib.get("name", "")
+                          msg = (failure if failure is not None else error).attrib.get("message", "")
+                          msg = msg.replace('\n', ' ').replace('|', '\\|')[:200]
+                          detail_lines.append(f"- `{name}`: {msg}")
+                  detail_lines.append("")
+                  detail_lines.append("</details>")
+
+              if skipped > 0:
+                  detail_lines.append("")
+                  detail_lines.append(f"<details><summary>⏭️ {platform} -- {skipped} skipped</summary>")
+                  detail_lines.append("")
+                  for testcase in root.iter("testcase"):
+                      skip = testcase.find("skipped")
+                      if skip is not None:
+                          name = testcase.attrib.get("classname", "") + "::" + testcase.attrib.get("name", "")
+                          reason = skip.attrib.get("message", "no reason given")
+                          reason = reason.replace('\n', ' ').replace('|', '\\|')[:200]
+                          detail_lines.append(f"- `{name}`: {reason}")
+                  detail_lines.append("")
+                  detail_lines.append("</details>")
+
+          if totals["tests"] > 0:
+              t = totals
+              t_status = "✅" if t["failures"] == 0 and t["errors"] == 0 else "❌"
+              summary_lines.append(f"| **Total** | **{t['tests']}** | **{t['passed']}** | **{t['failures']}** | **{t['errors']}** | **{t['skipped']}** | **{t['time']:.1f}s** | {t_status} |")
+
+          # Non-test jobs (no JUnit XML)
+          summary_lines.append("")
+          summary_lines.append("| Job | Status |")
+          summary_lines.append("|-----|--------|")
+          status_jobs = {
+              "Check (lint, format, typecheck, audit)": "${{ needs.check.result }}",
+              "Docker Smoke": "${{ needs.test-docker.result }}",
+              "Docker E2E": "${{ needs.test-docker-e2e.result }}",
+              "Package (wheel install)": "${{ needs.test-package.result }}",
+              "Install Script (docker)": "${{ needs.test-install-script.result }}",
+              "Install E2E": "${{ needs.test-install-e2e.result }}",
+          }
+          for name, result in status_jobs.items():
+              status = "✅" if result == "success" else "❌" if result == "failure" else "⏭️"
+              summary_lines.append(f"| {name} | {status} |")
+
+          # Details go after the tables so they don't break markdown rendering
+          summary_lines.append("")
+          summary_lines.extend(detail_lines)
+
+          if not glob.glob("test-results-*/test-results.xml"):
+              summary_lines = ["⚠️ No test result artifacts found."]
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("\n".join(summary_lines) + "\n")
+          PYEOF
+
+      - name: Add coverage summary
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          python3 - << 'PYEOF'
+          import xml.etree.ElementTree as ET
+          import os
+
+          cov_file = "test-results-linux/coverage.xml"
+          if os.path.exists(cov_file):
+              tree = ET.parse(cov_file)
+              root = tree.getroot()
+              line_rate = round(float(root.attrib.get("line-rate", 0)) * 100, 1)
+              branch_rate = round(float(root.attrib.get("branch-rate", 0)) * 100, 1)
+              # combined = weighted average matching coverage.py's --fail-under
+              lines_valid = int(root.attrib.get("lines-valid", 0))
+              lines_covered = int(root.attrib.get("lines-covered", 0))
+              branches_valid = int(root.attrib.get("branches-valid", 0))
+              branches_covered = int(root.attrib.get("branches-covered", 0))
+              total = lines_valid + branches_valid
+              combined = round((lines_covered + branches_covered) / total * 100, 1) if total else 0
+              threshold = 95
+              line_status = "✅" if line_rate >= threshold else "❌"
+              branch_status = "✅" if branch_rate >= threshold else "❌"
+              combined_status = "✅" if combined >= threshold else "❌"
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+                  f.write(f"| Metric | Value | Threshold | Status |\n")
+                  f.write(f"|--------|-------|-----------|--------|\n")
+                  f.write(f"| Line | {line_rate}% | -- | {line_status} |\n")
+                  f.write(f"| Branch | {branch_rate}% | -- | {branch_status} |\n")
+                  f.write(f"| **Combined** | **{combined}%** | **{threshold}%** | {combined_status} |\n")
+          else:
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+                  f.write("⚠️ No coverage report found.\n")
+          PYEOF
+
+      - name: Add doctor summary
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Doctor (Linux runner)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          python3 - << 'PYEOF'
+          import json
+          import os
+
+          report = "test-results-linux/doctor-report.json"
+          out = os.environ["GITHUB_STEP_SUMMARY"]
+          if not os.path.exists(report):
+              with open(out, "a") as f:
+                  f.write("⚠️ No doctor report found.\n")
+              raise SystemExit(0)
+
+          try:
+              data = json.load(open(report))
+          except (json.JSONDecodeError, OSError):
+              with open(out, "a") as f:
+                  f.write("⚠️ Doctor report was not valid JSON.\n")
+              raise SystemExit(0)
+
+          summary = data.get("summary", {})
+          results = data.get("results", [])
+          with open(out, "a") as f:
+              f.write("| Pass | Warn | Fail | Info |\n")
+              f.write("|------|------|------|------|\n")
+              f.write(
+                  f"| {summary.get('pass', 0)} | {summary.get('warn', 0)} "
+                  f"| {summary.get('fail', 0)} | {summary.get('info', 0)} |\n"
+              )
+              flagged = [r for r in results if r.get("status") in ("warn", "fail")]
+              if flagged:
+                  f.write("\n<details><summary>Warnings & failures</summary>\n\n")
+                  for r in flagged:
+                      icon = "❌" if r.get("status") == "fail" else "⚠️"
+                      msg = str(r.get("message", "")).replace("\n", " ").replace("|", "\\|")[:200]
+                      f.write(f"- {icon} `{r.get('name', '?')}`: {msg}\n")
+                  f.write("\n</details>\n")
+          PYEOF
+
+      - name: Fail if any job failed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        run: exit 1

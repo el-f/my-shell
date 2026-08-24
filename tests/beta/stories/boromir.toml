@@ -1,0 +1,231 @@
+# Boromir -- Config Tinkerer
+# Ubuntu 24.04, both shells, local overrides, backup/rollback
+
+[[stories]]
+id = "boromir-01"
+title = "Custom aliases.local.toml"
+description = "Create aliases.local.toml with custom aliases and verify they appear"
+commands = [
+  "cd /root/my-shell && printf '[custom]\nmy-alias = \"echo hello\"\n' > config/aliases.local.toml",
+  "cd /root/my-shell && mise exec -- uv run my-shell render --shell all",
+  "grep my-alias /root/my-shell/shells/nushell/aliases.nu",
+  "grep my-alias /root/my-shell/shells/xonsh/aliases.xsh",
+]
+expected_outcomes = [
+  "Local alias file merged with base",
+  "Custom alias appears in both rendered outputs (aliases.nu and aliases.xsh)",
+]
+judge_criteria = [
+  "Is the local override mechanism intuitive?",
+  "Is it documented how to use .local.toml files?",
+]
+category = "config"
+
+[[stories]]
+id = "boromir-02"
+title = "Custom settings.local.toml theme override"
+description = "Override the oh-my-posh theme via settings.local.toml"
+commands = [
+  "cd /root/my-shell && printf '[oh-my-posh]\ntheme = \"custom-theme\"\n' > config/settings.local.toml",
+  "cd /root/my-shell && mise exec -- uv run my-shell config",
+]
+expected_outcomes = [
+  "Config output JSON shows oh-my-posh.theme as 'custom-theme' (overriding default jblab_2021)",
+  "Local override merged into base settings",
+]
+judge_criteria = [
+  "Is the override clearly visible in config output?",
+  "Can you tell which file the override came from?",
+]
+category = "config"
+
+[[stories]]
+id = "boromir-03"
+title = "user-custom.nu survives 3 deploys"
+description = "Deploy 3 times and verify user-custom.nu is never overwritten"
+commands = [
+  "mkdir -p ~/.config/nushell && echo '# deploy 1' > ~/.config/nushell/user-custom.nu",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+  "cat ~/.config/nushell/user-custom.nu",
+]
+expected_outcomes = [
+  "user-custom.nu content unchanged after 3 deploys",
+  "Original content preserved",
+]
+judge_criteria = [
+  "Is the preservation reliable?",
+  "Any race conditions or edge cases?",
+]
+category = "deploy"
+
+[[stories]]
+id = "boromir-04"
+title = "Init wizard refuses non-interactive invocation"
+description = "Run init wizard in a non-TTY environment and verify it refuses gracefully"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell init"]
+expected_outcomes = [
+  "Detects non-interactive (no TTY) and refuses to run",
+  "Output contains 'Interactive terminal required' and suggests 'my-shell setup --shell'",
+  "Exits with non-zero exit code",
+]
+judge_criteria = [
+  "Is the non-TTY detection message clear and helpful?",
+  "Does it suggest an alternative (e.g., manual config editing)?",
+]
+category = "cli"
+
+[[stories]]
+id = "boromir-05"
+title = "Profile switching: minimal to full"
+description = "Switch between profiles and verify config changes"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --profile minimal --shell nushell",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --profile full --shell nushell",
+]
+expected_outcomes = [
+  "Each profile applies different settings",
+  "Switching is clean with no leftover state",
+]
+judge_criteria = [
+  "Did each profile command exit 0 with no leftover settings from the previous profile?",
+  "Can you see the difference between profiles?",
+]
+category = "deploy"
+
+[[stories]]
+id = "boromir-06"
+title = "Backup rotation after 5 deploys"
+description = "Deploy 5 times and verify backup rotation works"
+commands = [
+  "cd /root/my-shell && for i in 1 2 3 4 5; do mise exec -- uv run my-shell setup --shell nushell; done",
+  "ls -la ~/.config/nushell/.my-shell-backup/ 2>/dev/null || echo 'no backups found'",
+]
+expected_outcomes = [
+  "Backups are created",
+  "At most 5 backups exist (settings backup.max_count = 5)",
+]
+judge_criteria = [
+  "Is the backup rotation documented?",
+  "How many backups are kept?",
+]
+category = "lifecycle"
+
+[[stories]]
+id = "boromir-07"
+title = "Rollback with --to flag"
+description = "Test rollback listing and the --to flag with an invalid backup name"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell --force",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell --force",
+  "cd /root/my-shell && mise exec -- uv run my-shell rollback --shell nushell",
+  "cd /root/my-shell && mise exec -- uv run my-shell rollback --shell nushell --to nonexistent-backup 2>&1 || true",
+]
+expected_outcomes = [
+  "Shows available backups with timestamps",
+  "Can select and restore a specific backup",
+  "--to with invalid name gives clear error",
+]
+judge_criteria = [
+  "Is the rollback UX clear?",
+  "Does --to with a bad name give a helpful error?",
+]
+category = "lifecycle"
+
+[[stories]]
+id = "boromir-08"
+title = "Corrupt TOML -- validate -- fix -- re-validate"
+description = "Introduce bad TOML, validate (should fail), fix it, validate again"
+commands = [
+  "echo 'bad[toml' >> /root/my-shell/config/aliases.toml",
+  "cd /root/my-shell && mise exec -- uv run my-shell validate || true",
+  "cd /root/my-shell && git checkout config/aliases.toml",
+  "cd /root/my-shell && mise exec -- uv run my-shell validate",
+]
+expected_outcomes = [
+  "First validate fails with clear error",
+  "After fix, validate passes",
+]
+judge_criteria = [
+  "Is the validation error actionable?",
+  "Does the fix-and-revalidate flow work smoothly?",
+]
+category = "error-handling"
+
+[[stories]]
+id = "boromir-09"
+title = "Uninstall (keep-custom) then re-deploy"
+description = "Uninstall while keeping custom files, then re-deploy"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell uninstall --shell nushell",
+  "test -f ~/.config/nushell/user-custom.nu && echo 'custom preserved' || echo 'custom removed'",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+]
+expected_outcomes = [
+  "Managed configs removed",
+  "user-custom.nu preserved",
+  "Re-deploy works cleanly",
+]
+judge_criteria = [
+  "Does keep-custom work reliably?",
+  "Did the re-deploy recreate config.nu with no error output?",
+]
+category = "lifecycle"
+
+[[stories]]
+id = "boromir-10"
+title = "Invalid config keys -- validation warns"
+description = "Add unknown keys to TOML and verify validation catches them"
+commands = [
+  "cd /root/my-shell && echo '[unknown_section]\nfoo = \"bar\"' >> config/settings.local.toml",
+  "cd /root/my-shell && mise exec -- uv run my-shell validate",
+]
+expected_outcomes = [
+  "Validation warns about unknown keys",
+  "Exits 0 and does not print a Python traceback",
+]
+judge_criteria = [
+  "Are unknown keys treated as warnings or errors?",
+  "Is the warning message clear?",
+]
+category = "config"
+
+[[stories]]
+id = "boromir-11"
+title = "Setup --dry-run shows diff without deploying"
+description = "Run setup --dry-run and verify it previews changes without modifying files"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell --dry-run",
+  "test ! -f ~/.config/nushell/config.nu && echo 'no config deployed' || echo 'config exists'",
+]
+expected_outcomes = [
+  "Dry-run output shows what files would be created",
+  "No config files are deployed to ~/.config/nushell/",
+  "Exit code 0",
+]
+judge_criteria = [
+  "Is the dry-run output clear about what would change?",
+  "Does it correctly avoid deploying any files?",
+]
+category = "deploy"
+
+[[stories]]
+id = "boromir-12"
+title = "Status detects stale config after local change"
+description = "Deploy, add a local alias override, verify status shows re-deploy needed"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+  "cd /root/my-shell && mise exec -- uv run my-shell status --shell nushell",
+  "cd /root/my-shell && printf '[custom]\ntest-stale = \"echo stale\"\n' > config/aliases.local.toml",
+  "cd /root/my-shell && mise exec -- uv run my-shell status --shell nushell",
+]
+expected_outcomes = [
+  "First status shows 'Up to date'",
+  "After adding local override, status shows 'Re-deploy needed' or similar stale message",
+]
+judge_criteria = [
+  "Does status correctly detect config drift?",
+  "Is the message actionable (suggests re-running setup)?",
+]
+category = "cli"

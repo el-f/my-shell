@@ -1,0 +1,66 @@
+services:
+  xonsh:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: deployed
+      secrets:
+        - github_token
+    stdin_open: true
+    tty: true
+    command: ["mise", "exec", "--", "xonsh"]
+  nushell:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: deployed
+      secrets:
+        - github_token
+    stdin_open: true
+    tty: true
+    command: ["mise", "exec", "--", "nu"]
+  test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: deployed
+      secrets:
+        - github_token
+    command: ["mise", "exec", "--", "uv", "run", "pytest", "-v"]
+  smoke:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: deployed
+      secrets:
+        - github_token
+    command: ["bash", "docker/smoke-test.sh"]
+  e2e:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: base
+      secrets:
+        - github_token
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+    command: ["mise", "exec", "--", "uv", "run", "pytest", "-v", "-m", "e2e"]
+  install-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.install-test
+      target: test-idempotent
+      secrets:
+        - github_token
+  install-test-wget:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.install-test
+      target: test-wget-fallback
+      secrets:
+        - github_token
+
+# Build-time only: the token stays out of the image config and `docker history`.
+secrets:
+  github_token:
+    environment: GITHUB_TOKEN

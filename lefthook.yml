@@ -1,0 +1,41 @@
+rc: ./.lefthook-rc
+no_tty: true
+
+pre-commit:
+  commands:
+    format:
+      glob: "*.py"
+      run: uv run ruff format {staged_files}
+      stage_fixed: true
+    lint:
+      glob: "*.py"
+      run: uv run ruff check --fix {staged_files}
+      stage_fixed: true
+    lint-strict:
+      glob: "*.py"
+      run: uv run ruff check {staged_files}
+    typecheck:
+      glob: "*.py"
+      run: uv run mypy core/
+    toml-format:
+      glob: "*.toml"
+      run: taplo fmt --check {staged_files}
+    toml-validate:
+      glob: "*.toml"
+      run: taplo check {staged_files}
+    shellcheck:
+      glob: "*.sh"
+      run: shellcheck {staged_files}
+    test:
+      run: uv run pytest -q -m 'not slow and not e2e and not integration'
+
+pre-push:
+  commands:
+    format-check:
+      run: uv run ruff format --check core/ tests/
+    lint-check:
+      run: uv run ruff check core/ tests/
+    typecheck:
+      run: uv run mypy core/
+    test:
+      run: uv run pytest -q -m 'not slow and not e2e and not integration'

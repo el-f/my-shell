@@ -1,0 +1,199 @@
+# Sam -- DevOps Engineer
+# Arch Linux, full dev tools, Docker/k8s aliases, cargo plugins
+
+[[stories]]
+id = "sam-01"
+title = "Install on Arch Linux"
+description = "Run install.sh on Arch Linux with pacman"
+commands = ["bash /opt/my-shell-repo/install.sh"]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+expected_outcomes = [
+  "Exit code 0",
+  "Install completes on Arch",
+  "No Debian/Ubuntu-specific assumptions",
+]
+judge_criteria = [
+  "Does install.sh work on a non-Debian distro?",
+  "Are there any apt-get assumptions?",
+]
+category = "install"
+
+[[stories]]
+id = "sam-02"
+title = "Setup with full profile"
+description = "Deploy with full profile to get all integrations"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --profile full",
+]
+expected_outcomes = ["Full profile applied", "All integrations enabled"]
+judge_criteria = [
+  "Are all integrations clearly listed?",
+  "Is it clear what full profile includes vs minimal?",
+]
+category = "deploy"
+
+[[stories]]
+id = "sam-03"
+title = "Docker aliases work"
+description = "Verify Docker-related aliases are available and correct"
+commands = [
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | where name in [d dc dps di] | length'",
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | where name == d | get 0.expansion'",
+]
+expected_outcomes = [
+  "Docker aliases are defined",
+  "Aliases map to expected docker commands",
+]
+judge_criteria = [
+  "Are the Docker alias names intuitive?",
+  "Do they cover common Docker workflows?",
+]
+category = "integration"
+
+[[stories]]
+id = "sam-04"
+title = "Kubectl aliases work"
+description = "Verify Kubernetes-related aliases are available"
+commands = [
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | where name in [k kg kd kdel] | length'",
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | where name == k | get 0.expansion'",
+]
+expected_outcomes = [
+  "Kubectl aliases are defined",
+  "Aliases map to expected kubectl commands",
+]
+judge_criteria = [
+  "Are the kubectl alias names standard?",
+  "Do they follow kubectl alias conventions?",
+]
+category = "integration"
+
+[[stories]]
+id = "sam-05"
+title = "Plugin setup via cargo"
+description = "Compile and register nushell plugins"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell plugins setup"]
+expected_outcomes = [
+  "Output shows cargo build progress or success message per plugin",
+  "Plugins registered with nushell",
+]
+judge_criteria = [
+  "Is the compilation progress visible?",
+  "Are failures clearly attributed to specific plugins?",
+]
+category = "plugins"
+
+[[stories]]
+id = "sam-06"
+title = "Atuin integration"
+description = "Verify atuin shell history integration is configured"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell doctor",
+  "test -f ~/.config/nushell/atuin.nu && echo 'atuin init exists' || echo 'no atuin init'",
+  "grep -l 'atuin' ~/.config/nushell/config.nu 2>/dev/null && echo 'atuin sourced' || echo 'atuin not sourced'",
+]
+expected_outcomes = [
+  "Doctor shows atuin status",
+  "Atuin init file generated if atuin is installed",
+  "Config.nu sources atuin integration",
+]
+judge_criteria = [
+  "Is atuin integration optional and clearly documented?",
+  "What happens when atuin is not installed?",
+]
+category = "integration"
+
+[[stories]]
+id = "sam-07"
+title = "Carapace completions"
+description = "Verify carapace completion integration"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell doctor",
+  "test -f ~/.config/nushell/carapace.nu && echo 'carapace init exists' || echo 'no carapace init'",
+  "grep -l 'carapace' ~/.config/nushell/config.nu 2>/dev/null && echo 'carapace sourced' || echo 'carapace not sourced'",
+]
+expected_outcomes = [
+  "Doctor shows carapace status",
+  "Carapace init file generated if carapace is installed",
+  "Config.nu sources carapace integration",
+]
+judge_criteria = [
+  "Does config.nu source the generated carapace init file?",
+  "What happens when carapace is not installed?",
+]
+category = "integration"
+
+[[stories]]
+id = "sam-08"
+title = "Lazygit alias"
+description = "Verify lazygit alias is available"
+commands = [
+  "nu --config ~/.config/nushell/config.nu --env-config ~/.config/nushell/env.nu -c 'help aliases | where name == lg | length'",
+]
+expected_outcomes = ["lg alias is defined", "Maps to lazygit"]
+judge_criteria = ["Is the alias name standard?"]
+category = "integration"
+
+[[stories]]
+id = "sam-09"
+title = "Setup xonsh with install flag"
+description = "Setup xonsh and install it if not present"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell xonsh",
+]
+expected_outcomes = ["xonsh installed", "Ready for deploy"]
+judge_criteria = [
+  "Is the install process clear?",
+  "Does it handle an already-installed xonsh?",
+]
+category = "install"
+
+[[stories]]
+id = "sam-10"
+title = "Plugin status before compilation"
+description = "Check plugins status when cargo is available but plugins haven't been built yet"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell plugins status"]
+expected_outcomes = [
+  "Shows plugin status for each plugin",
+  "Plugins listed as not compiled/not registered",
+]
+judge_criteria = [
+  "Does status clearly distinguish compiled vs not-compiled plugins?",
+  "Is it clear which plugins are available for installation?",
+]
+category = "plugins"
+
+[[stories]]
+id = "sam-11"
+title = "Deploy and verify xonsh aliases"
+description = "Setup xonsh and verify Docker/kubectl aliases are available"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell install --shell xonsh",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell xonsh",
+  "xonsh --rc ~/.xonshrc -c 'print(\"d\" in aliases and \"k\" in aliases)'",
+]
+expected_outcomes = [
+  "xonsh installed and config deployed successfully",
+  "Docker alias 'd' and kubectl alias 'k' are present (prints True)",
+  "No xontrib loading errors in stderr",
+]
+judge_criteria = [
+  "Do the same aliases work across both shells?",
+  "Are there any xonsh-specific warnings during deploy?",
+]
+category = "integration"
+
+[[stories]]
+id = "sam-12"
+title = "Verify xontrib loading in xonsh"
+description = "Start xonsh and verify xontribs load without errors"
+commands = ["xonsh --rc ~/.xonshrc -c 'print(\"xontribs loaded ok\")' 2>&1"]
+expected_outcomes = [
+  "Output contains 'xontribs loaded ok'",
+  "No xontrib import errors or warnings in combined stdout/stderr",
+]
+judge_criteria = [
+  "Do all configured xontribs load cleanly?",
+  "Are there any deprecation warnings or import errors?",
+]
+category = "integration"

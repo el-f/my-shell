@@ -1,0 +1,46 @@
+# Mirrors .gitignore: anything git treats as private or local stays out of the image.
+.git
+
+# Local-only config and customizations
+.claude/
+CLAUDE.md
+config/*.local.toml
+.mise.local.toml
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python / build output
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.pytest*
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# Generated output
+backups/
+test-results/
+test-results.xml
+tests/beta/reports/
+*.log
+.tmp-*
+*.tmp
+*.bak
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

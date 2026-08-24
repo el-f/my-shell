@@ -1,0 +1,13 @@
+[plugins.nu_plugin_gstat]
+crate = "nu_plugin_gstat"
+description = "Git status as structured data"
+
+[plugins.nu_plugin_formats]
+crate = "nu_plugin_formats"
+description = "Extra format support (eml, ics, ini, vcf)"
+
+[plugins.nu_plugin_query]
+crate = "nu_plugin_query"
+description = "Query JSON, XML, and web data"
+
+# Clipboard needs no plugin -- nushell 0.111+ ships `clip copy` / `clip paste`.

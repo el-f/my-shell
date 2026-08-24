@@ -1,0 +1,222 @@
+# Gandalf -- CI/CD Automator
+# All platforms, exit codes, non-interactive, parseable output
+
+[[stories]]
+id = "gandalf-01"
+title = "Non-interactive install with env vars"
+description = "Install.sh with all env vars set, fully non-interactive"
+commands = ["bash /opt/my-shell-repo/install.sh"]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell", MISE_YES = "1" }
+expected_outcomes = [
+  "Exit code 0",
+  "No interactive prompts",
+  "All output to stdout/stderr",
+]
+judge_criteria = [
+  "Is the install truly non-interactive?",
+  "Can CI capture all output?",
+]
+category = "install"
+
+[[stories]]
+id = "gandalf-02"
+title = "Non-interactive install.ps1"
+description = "Install.ps1 on Linux (should skip gracefully; runs natively on Windows CI)"
+commands = [
+  "command -v powershell >/dev/null 2>&1 && powershell -ExecutionPolicy Bypass -File /opt/my-shell-repo/install.ps1 || echo 'SKIP: PowerShell not available on Linux'",
+]
+expected_outcomes = [
+  "Skipped on Linux with clear message",
+  "Would succeed on Windows CI runners",
+]
+judge_criteria = [
+  "Is the skip message clear?",
+  "Does it work in CI environments where PowerShell is available?",
+]
+category = "install"
+
+[[stories]]
+id = "gandalf-03"
+title = "All --help commands exit 0"
+description = "Every subcommand's --help must exit 0"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell install --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell render --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell deploy --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell install-tools --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell install-fonts --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell detect --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell plugins --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell status --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell update --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell doctor --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell benchmark --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell rollback --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell init --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell version --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell validate --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell config --help",
+  "cd /root/my-shell && mise exec -- uv run my-shell uninstall --help",
+]
+expected_outcomes = ["All 19 commands exit 0", "All print usage information"]
+judge_criteria = [
+  "Do ALL subcommands support --help?",
+  "Are exit codes consistently 0 for --help?",
+]
+category = "cli"
+
+[[stories]]
+id = "gandalf-04"
+title = "Setup then status shows up to date"
+description = "After setup, status should report 'up to date'"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+  "cd /root/my-shell && mise exec -- uv run my-shell status",
+]
+expected_outcomes = ["Status shows deployed and up to date", "Exit code 0"]
+judge_criteria = [
+  "Is the status output parseable by CI scripts?",
+  "Is the 'up to date' state clearly indicated?",
+]
+category = "cli"
+
+[[stories]]
+id = "gandalf-05"
+title = "Render all shells"
+description = "Render aliases for all supported shells in one invocation"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell render --shell all",
+  "test -f /root/my-shell/shells/nushell/aliases.nu && echo 'nushell: ok'",
+  "test -f /root/my-shell/shells/xonsh/aliases.xsh && echo 'xonsh: ok'",
+]
+expected_outcomes = [
+  "render --shell all exits 0 and produces both output files",
+  "Both shells/nushell/aliases.nu and shells/xonsh/aliases.xsh exist",
+]
+judge_criteria = [
+  "Does render --shell all produce both output files in one invocation?",
+  "Are both output files non-empty?",
+]
+category = "cli"
+
+[[stories]]
+id = "gandalf-06"
+title = "Update command pulls and redeploys"
+description = "Run update after initial install to verify git pull + force redeploy"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+  "cd /root/my-shell && mise exec -- uv run my-shell update",
+]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+expected_outcomes = [
+  "Update exits 0",
+  "Git pull attempted (may already be up to date)",
+  "Re-deploy triggered after pull",
+]
+judge_criteria = [
+  "Does update clearly show what it pulled?",
+  "Is the redeploy automatic and non-interactive?",
+]
+category = "cli"
+
+[[stories]]
+id = "gandalf-07"
+title = "Validate as CI gate"
+description = "Use validate as a CI gate -- must exit non-zero on bad config"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell validate"]
+expected_outcomes = [
+  "Exit code 0 for valid config",
+  "Parseable output for CI consumption",
+]
+judge_criteria = [
+  "Can validate be used as a CI gate?",
+  "Is the exit code reliable?",
+]
+category = "cli"
+
+[[stories]]
+id = "gandalf-08"
+title = "Config output is parseable"
+description = "Verify config command output can be parsed programmatically"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell config"]
+expected_outcomes = [
+  "Output is valid JSON (config command uses json.dumps in cli.py)",
+  "Parseable by scripts",
+]
+judge_criteria = [
+  "Is the config output in a standard format?",
+  "Can CI scripts extract specific values?",
+]
+category = "cli"
+
+[[stories]]
+id = "gandalf-09"
+title = "Detect outputs correct platform"
+description = "Verify detect output matches the actual platform"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell detect"]
+expected_outcomes = [
+  "OS matches runtime platform",
+  "Architecture matches runtime architecture",
+  "Exit code 0",
+]
+judge_criteria = [
+  "Is the detect output accurate?",
+  "Is it parseable for CI consumption?",
+]
+category = "cli"
+
+[[stories]]
+id = "gandalf-10"
+title = "Full pipeline: setup, doctor, benchmark"
+description = "Run a complete pipeline of commands as CI would"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell all",
+  "cd /root/my-shell && mise exec -- uv run my-shell doctor",
+  "cd /root/my-shell && mise exec -- uv run my-shell benchmark",
+  "nu -c 'print \"nushell: ok\"'",
+  "xonsh --rc ~/.xonshrc -c 'print(\"xonsh: ok\")' 2>&1",
+]
+expected_outcomes = [
+  "All commands exit 0",
+  "Pipeline completes end-to-end",
+  "Both deployed shells start non-interactively and print their ok line",
+  "Output is CI-friendly",
+]
+judge_criteria = [
+  "Does the full pipeline work without manual intervention?",
+  "Do both shells load their deployed config without warnings?",
+  "Is every step's output useful in a CI log?",
+]
+category = "pipeline"
+
+[[stories]]
+id = "gandalf-11"
+title = "Config output is valid JSON"
+description = "Parse config output with python json.loads to verify it's standard JSON"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell config | python3 -c 'import sys,json; d=json.load(sys.stdin); print(\"valid JSON, keys:\", list(d.keys()))'",
+]
+expected_outcomes = ["Output is valid JSON", "python json.load succeeds"]
+judge_criteria = ["Is the config output standard JSON that scripts can parse?"]
+category = "cli"
+
+[[stories]]
+id = "gandalf-12"
+title = "Non-zero exit codes for failures"
+description = "Verify that invalid inputs produce non-zero exit codes for CI gating"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell fish 2>&1",
+  "cd /root/my-shell && mise exec -- uv run my-shell rollback --shell nushell --to nonexistent 2>&1",
+]
+expected_outcomes = [
+  "Invalid shell 'fish' produces non-zero exit code",
+  "Invalid rollback target produces non-zero exit code",
+  "Error messages are written to stderr with actionable text",
+]
+judge_criteria = [
+  "Are exit codes reliable for CI scripting?",
+  "Do error messages contain enough context to debug?",
+]
+category = "error-handling"

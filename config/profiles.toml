@@ -1,0 +1,10 @@
+# Configuration Profiles
+# Use with: my-shell setup --profile <name>
+
+[profiles.minimal]
+integrations = ["zoxide"]
+commands = ["navigation", "utilities"]
+
+[profiles.full]
+integrations = ["oh-my-posh", "zoxide", "atuin", "carapace", "mise"]
+commands = ["navigation", "fuzzy", "utilities", "sysinfo", "commands"]

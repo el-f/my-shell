@@ -1,0 +1,152 @@
+# my-shell template -- overwritten on update; edit user-custom.nu in your nushell config directory instead
+
+# Shell Behavior
+
+$env.config = {
+    show_banner: false
+
+    # Table display
+    table: {
+        mode: rounded
+        index_mode: always
+        show_empty: true
+        trim: {
+            methodology: wrapping
+            wrapping_try_keep_words: true
+        }
+    }
+
+    # Show row count at bottom of long tables
+    footer_mode: 25
+
+    # File size display
+    filesize: {
+        unit: "binary"
+    }
+
+    # Line editor (reedline)
+    edit_mode: emacs  # or vi
+
+    # History
+    history: {
+        max_size: 1000000
+        sync_on_enter: true
+        file_format: "sqlite"
+        isolation: false   # set to true if you want per-session history
+    }
+
+    # Completions
+    completions: {
+        case_sensitive: false
+        quick: true
+        partial: true
+        algorithm: "fuzzy"
+    }
+
+    # Shell integration
+    shell_integration: { osc2: true, osc7: true, osc8: true, osc9_9: false, osc133: true, osc633: true, reset_application_mode: true }
+
+    # Cursor shape
+    cursor_shape: {
+        emacs: line
+        vi_insert: line
+        vi_normal: block
+    }
+
+    # Buffer editor: press Ctrl+O to open $EDITOR for multiline commands
+    buffer_editor: null   # Uses $env.EDITOR automatically
+
+    # Color config
+    use_ansi_coloring: true
+    error_style: "fancy"   # Rich error messages with source context
+    color_config: {
+        separator: white
+        leading_trailing_space_bg: { attr: n }
+        header: green_bold
+        empty: blue
+        bool: light_cyan
+        int: white
+
+    }
+    # Menus
+    menus: [
+        {
+            name: completion_menu
+            only_buffer_difference: false
+            marker: "| "
+            type: {
+                layout: columnar
+                columns: 4
+                col_width: 20
+                col_padding: 2
+            }
+            style: {
+                text: green
+                selected_text: green_reverse
+                description_text: yellow
+            }
+        }
+        {
+            name: history_menu
+            only_buffer_difference: true
+            marker: "? "
+            type: {
+                layout: list
+                page_size: 10
+            }
+            style: {
+                text: green
+                selected_text: green_reverse
+                description_text: yellow
+            }
+        }
+    ]
+
+    # Keybindings
+    keybindings: [
+        {
+            name: completion_menu
+            modifier: none
+            keycode: tab
+            mode: [emacs vi_normal vi_insert]
+            event: {
+                until: [
+                    { send: menu name: completion_menu }
+                    { send: menunext }
+                ]
+            }
+        }
+        {
+            name: history_menu
+            modifier: control
+            keycode: char_r
+            mode: [emacs, vi_insert, vi_normal]
+            event: { send: menu name: history_menu }
+        }
+    ]
+}
+
+# Default Editor
+
+# Set default editor (tries to find best available)
+$env.EDITOR = (
+    if (which code | is-not-empty) {
+        "code --wait"
+    } else if (which vim | is-not-empty) {
+        "vim"
+    } else if (which nano | is-not-empty) {
+        "nano"
+    } else {
+        "vi"
+    }
+)
+
+# Helpful Defaults
+
+# Better ls colors
+if (which vivid | is-not-empty) {
+    $env.LS_COLORS = (vivid generate molokai | str trim)
+}
+
+# Enable dotfile visibility
+$env.SHOW_DOTFILES = true

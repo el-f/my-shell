@@ -1,0 +1,165 @@
+# Merry -- Fedora Developer
+# Fedora 41, dnf, startup time, both shells
+
+[[stories]]
+id = "merry-01"
+title = "Install on Fedora"
+description = "Run install.sh on Fedora with dnf"
+commands = ["bash /opt/my-shell-repo/install.sh"]
+env = { MY_SHELL_REPO = "/opt/my-shell-repo", MY_SHELL_INSTALL_DIR = "/root/my-shell" }
+expected_outcomes = [
+  "Exit code 0",
+  "uv and mise installed",
+  "Repository cloned",
+  "Setup completes",
+]
+judge_criteria = [
+  "Does install.sh work on a dnf-based distro?",
+  "Are there any apt/dpkg assumptions that break on Fedora?",
+]
+category = "install"
+
+[[stories]]
+id = "merry-02"
+title = "Init wizard refuses non-interactive"
+description = "Run my-shell init on CI (non-TTY) and verify graceful refusal"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell init 2>&1"]
+expected_outcomes = [
+  "Detects non-interactive (no TTY) and refuses to run",
+  "Prints message suggesting 'my-shell setup --shell <shell>' as alternative",
+  "Non-zero exit code",
+]
+judge_criteria = [
+  "Does the error message explain why the wizard cannot run?",
+  "Does it suggest the non-interactive alternative (setup)?",
+]
+category = "cli"
+
+[[stories]]
+id = "merry-03"
+title = "Deploy both shells"
+description = "Deploy nushell and xonsh configs, verify they land in correct directories"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell nushell",
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --shell xonsh",
+]
+expected_outcomes = [
+  "Both deploys succeed",
+  "Config files placed in ~/.config/nushell/ and ~/.config/xonsh/",
+]
+judge_criteria = [
+  "Are the config directories correct for the platform?",
+  "Does the output clearly show where files were deployed?",
+]
+category = "deploy"
+
+[[stories]]
+id = "merry-04"
+title = "oh-my-posh + Nerd Font install"
+description = "Install oh-my-posh prompt theme and a Nerd Font"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell install-tools",
+  "cd /root/my-shell && mise exec -- uv run my-shell install-fonts",
+]
+expected_outcomes = [
+  "oh-my-posh installation attempted",
+  "Font installation attempted",
+]
+judge_criteria = [
+  "Is the font installation process clear?",
+  "Does it explain what to do after installing?",
+]
+category = "install"
+
+[[stories]]
+id = "merry-05"
+title = "Benchmark shell startup"
+description = "Run benchmark --detailed to measure startup time"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell benchmark --detailed",
+]
+expected_outcomes = [
+  "Shows startup time measurements",
+  "Detailed breakdown available",
+]
+judge_criteria = [
+  "Is the benchmark output useful for optimization?",
+  "Are the numbers presented clearly?",
+]
+category = "performance"
+
+[[stories]]
+id = "merry-06"
+title = "Load xonsh and verify aliases + xontribs"
+description = "Start xonsh and verify aliases and xontribs are loaded"
+commands = [
+  "xonsh --rc ~/.xonshrc -c 'print(f\"Aliases loaded: {len(aliases)}\"); print(\"ok\")' 2>&1",
+]
+expected_outcomes = [
+  "xonsh starts without errors or xontrib warnings",
+  "Aliases count is > 0",
+  "Output ends with 'ok'",
+]
+judge_criteria = [
+  "Does xonsh start cleanly?",
+  "Are xontribs loaded without warnings?",
+]
+category = "integration"
+
+[[stories]]
+id = "merry-07"
+title = "Verify zoxide integration in nushell"
+description = "Check that zoxide hook is configured in nushell"
+commands = ["nu -c 'which z'"]
+expected_outcomes = [
+  "z command is available (if zoxide is installed)",
+  "Clear indication if zoxide is not available",
+]
+judge_criteria = [
+  "Does `which z` resolve to the zoxide command?",
+  "What happens when zoxide is not installed?",
+]
+category = "integration"
+
+[[stories]]
+id = "merry-08"
+title = "Setup with minimal profile"
+description = "Switch to minimal profile to reduce startup time"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell setup --profile minimal",
+]
+expected_outcomes = ["Minimal profile applied", "Fewer integrations loaded"]
+judge_criteria = [
+  "Is it clear what minimal profile disables?",
+  "Does it measurably reduce startup time?",
+]
+category = "deploy"
+
+[[stories]]
+id = "merry-09"
+title = "Dry-run deploy"
+description = "Run deploy --dry-run to preview changes without applying"
+commands = [
+  "cd /root/my-shell && mise exec -- uv run my-shell deploy --dry-run",
+]
+expected_outcomes = [
+  "Shows what would be deployed",
+  "No files actually changed",
+]
+judge_criteria = [
+  "Is the dry-run output clear about what would change?",
+  "Can you tell the difference between dry-run and actual deploy?",
+]
+category = "deploy"
+
+[[stories]]
+id = "merry-10"
+title = "Show merged configuration"
+description = "Run my-shell config to see the merged settings"
+commands = ["cd /root/my-shell && mise exec -- uv run my-shell config"]
+expected_outcomes = ["Shows merged configuration", "Local overrides visible"]
+judge_criteria = [
+  "Is the config output well-formatted?",
+  "Can you see where each setting comes from?",
+]
+category = "cli"

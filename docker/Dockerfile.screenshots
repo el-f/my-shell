@@ -1,0 +1,58 @@
+# syntax=docker/dockerfile:1
+# Renders the README screenshots from a clean container.
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y \
+    curl git python3 python3-venv unzip ca-certificates fontconfig \
+    build-essential pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+USER ubuntu
+ENV PATH="/home/ubuntu/.local/bin:/home/ubuntu/.cargo/bin:${PATH}"
+
+RUN curl -fsSL https://mise.run | MISE_VERSION="v2026.7.15" sh
+
+COPY --chown=ubuntu:ubuntu . /home/ubuntu/my-shell
+WORKDIR /home/ubuntu/my-shell
+ENV MY_SHELL_DIR="/home/ubuntu/my-shell"
+ENV MISE_TRUSTED_CONFIG_PATHS="/home/ubuntu/my-shell"
+
+RUN find . -name "*.sh" -exec sed -i 's/\r$//' {} +
+
+# Every tool in [tools] (including Nu), then the uv-managed xonsh environment.
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
+    mise install --locked \
+    && mise exec -- uv sync --frozen --group dev \
+    && mise exec -- uv run my-shell install --shell xonsh
+
+# Nushell plugins are cargo builds, so this stage needs a Rust toolchain.
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
+    mise use -g rust@latest \
+    && mise exec -- uv run my-shell plugins setup
+
+# A Nerd Font so the check marks and box drawing render, plus the renderer.
+RUN mkdir -p /home/ubuntu/.local/share/fonts \
+    && curl -fsSL -o /tmp/FiraCode.zip \
+       https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip \
+    && unzip -q -o /tmp/FiraCode.zip -d /home/ubuntu/.local/share/fonts \
+    && rm /tmp/FiraCode.zip \
+    && fc-cache -f
+
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
+    mise use -g "aqua:charmbracelet/freeze@0.2.2"
+
+# .git is dockerignored, so `my-shell version` would read "unknown". Stamp a
+# throwaway repo carrying the real commit date instead.
+ARG MY_SHELL_COMMIT_DATE="2026-01-01 00:00:00 +0000"
+RUN git init -q . \
+    && git config user.email screenshots@example.com \
+    && git config user.name screenshots \
+    && git add -A \
+    && git commit -q -m "screenshot build" --date "$MY_SHELL_COMMIT_DATE"
+
+RUN mise exec -- uv run my-shell setup --shell all
+
+COPY --chown=ubuntu:ubuntu docker/render-screenshots.sh /home/ubuntu/render-screenshots.sh
+RUN sed -i 's/\r$//' /home/ubuntu/render-screenshots.sh && chmod +x /home/ubuntu/render-screenshots.sh
+
+ENTRYPOINT ["/home/ubuntu/render-screenshots.sh"]
