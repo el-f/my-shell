@@ -130,7 +130,8 @@ run = [
   "uv run ruff check core/ tests/",
   "uv run ruff format --check core/ tests/",
   "uv run mypy core/",
-  "uv run pytest -q -m 'not slow and not e2e'",
+  # Double quotes: on Windows mise runs tasks through cmd, which splits 'single quoted' args.
+  'uv run pytest -q -m "not slow and not e2e"',
 ]
 
 [tasks.ci]
@@ -141,5 +142,5 @@ run = [
   "uv run mypy core/",
   "uv lock --check",
   "uv build",
-  "uv run pytest -m 'not slow'",
+  'uv run pytest -m "not slow"',
 ]
