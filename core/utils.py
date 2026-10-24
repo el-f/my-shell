@@ -107,6 +107,23 @@ def guard_test_write(target: Path, action: str) -> None:
     )
 
 
+def system_install_blocked_under_test() -> bool:
+    """True when a CLI launched by a test is about to run a real package manager on a developer machine.
+
+    A winget upgrade of Nushell closes every running nu.exe through Restart Manager, which kills
+    the developer's open shells. CI runners and containers are disposable, so installs run there.
+    In-process unit tests (pytest imported) mock subprocess and are never blocked.
+    """
+    if "PYTEST_CURRENT_TEST" not in os.environ or "pytest" in sys.modules:
+        return False
+    if (
+        os.environ.get("MY_SHELL_ALLOW_SYSTEM_INSTALLS", "").strip()
+        or os.environ.get("CI", "").strip()
+    ):
+        return False
+    return not Path("/.dockerenv").exists()
+
+
 def _canonical(path: Path | str) -> str:
     """Normalised absolute path: resolves 8.3 short names, symlinks and case.
 

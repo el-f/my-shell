@@ -4,6 +4,9 @@ These tests pin the guard that makes that structurally impossible rather than
 a convention every future test has to remember.
 """
 
+import os
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -72,6 +75,71 @@ def test_is_inert_outside_a_test_run(monkeypatch):
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
 
     guard_test_write(fake_home / "AppData" / "Roaming" / "nushell" / "config.nu", "deploy")
+
+
+def _run_install_command_in_child(
+    tmp_path: Path, real_project_dir: Path, **env: str
+) -> tuple[bool, str]:
+    """Call install._run from a child process, the way the e2e CLI does; report whether the command ran."""
+    marker = tmp_path / "ran.txt"
+    command = [sys.executable, "-c", f"open({str(marker)!r}, 'w').close()"]
+    child_env = {
+        k: v for k, v in os.environ.items() if k not in ("CI", "MY_SHELL_ALLOW_SYSTEM_INSTALLS")
+    }
+    child_env.update(env)
+    proc = subprocess.run(
+        [sys.executable, "-c", f"from core.install import _run; _run({command!r})"],
+        cwd=real_project_dir,
+        env=child_env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return marker.exists(), proc.stdout + proc.stderr
+
+
+disposable = pytest.mark.skipif(
+    bool(os.environ.get("CI")) or Path("/.dockerenv").exists(),
+    reason="CI runners and containers are disposable, so installs are allowed there",
+)
+
+
+@disposable
+def test_a_cli_launched_by_a_test_never_runs_a_package_manager(
+    tmp_path: Path, real_project_dir: Path
+):
+    """A winget upgrade of Nushell closes every running nu.exe, killing the developer's open shells."""
+    ran, output = _run_install_command_in_child(tmp_path, real_project_dir)
+
+    assert not ran
+    assert "MY_SHELL_ALLOW_SYSTEM_INSTALLS" in output
+
+
+def test_opt_in_lets_a_test_run_a_package_manager(tmp_path: Path, real_project_dir: Path):
+    ran, _ = _run_install_command_in_child(
+        tmp_path, real_project_dir, MY_SHELL_ALLOW_SYSTEM_INSTALLS="1"
+    )
+
+    assert ran
+
+
+def test_ci_runners_run_package_managers(tmp_path: Path, real_project_dir: Path):
+    ran, _ = _run_install_command_in_child(tmp_path, real_project_dir, CI="true")
+
+    assert ran
+
+
+def test_in_process_unit_tests_still_reach_the_runner(monkeypatch):
+    """Unit tests mock subprocess.run inside _run; the guard must not hide those calls."""
+    from core import install
+
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("MY_SHELL_ALLOW_SYSTEM_INSTALLS", raising=False)
+    with patch("core.install.subprocess.run") as run:
+        install._run(["winget", "upgrade", "--id", "Nushell.Nushell"])
+
+    run.assert_called_once()
 
 
 def test_deploy_wires_the_guard_before_writing(real_project_dir: Path):

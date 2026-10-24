@@ -26,6 +26,8 @@ from .utils import (
     log_error,
     log_step,
     log_success,
+    log_warn,
+    system_install_blocked_under_test,
 )
 
 
@@ -482,6 +484,12 @@ def _run(
     stderr is appended to the RuntimeError, so a caller that swallows the error
     can still report why it failed. Default streams to the console.
     """
+    if system_install_blocked_under_test():
+        log_warn(
+            f"  Skipped under test: {' '.join(cmd)} "
+            "(set MY_SHELL_ALLOW_SYSTEM_INSTALLS=1 to run it on this machine)"
+        )
+        return
     log_step(f"  Running: {' '.join(cmd)}")
     run_kwargs: dict = {"check": True, "stdin": subprocess.DEVNULL, "timeout": timeout}
     if capture:
