@@ -14,6 +14,20 @@ def test_baked_path_extraction_handles_quoted_paths_with_spaces():
     assert _baked_path_references(f'let bin = "{path}"') == {path}
 
 
+def test_baked_path_extraction_skips_a_baked_path_list():
+    """mise >= 2026.10 bakes the whole PATH as one raw string; a list is not one dead path."""
+    from core.doctor import _baked_path_references
+
+    content = (
+        "$env.__MISE_ORIG_PATH = r#'/home/u/.local/bin:/usr/local/bin:/usr/bin:/bin'#\n"
+        "$env.PATH = (r#'C:\\Users\\u\\.local\\bin;C:\\Program Files\\PowerShell\\7'# | split row (char esep))\n"
+        "let exe = 'C:\\Users\\u\\AppData\\Local\\mise\\shims\\mise.exe'\n"
+    )
+    assert _baked_path_references(content) == {
+        "C:\\Users\\u\\AppData\\Local\\mise\\shims\\mise.exe"
+    }
+
+
 def _prompt_settings() -> dict:
     """Minimal settings fixture for prompt doctor checks."""
     return {

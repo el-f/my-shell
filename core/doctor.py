@@ -963,6 +963,9 @@ def _baked_path_references(content: str) -> set[str]:
     for double_quoted, single_quoted in _QUOTED_VALUE_RE.findall(content):
         value = (double_quoted or single_quoted).replace("\\\\", "\\")
         normalized = value.replace("\\", "/")
+        # A PATH list (mise >= 2026.10 bakes $env.PATH as one string) is not an executable reference.
+        if ";" in value or ":" in normalized[2:]:
+            continue
         is_absolute = normalized.startswith("/") or bool(re.match(r"^[A-Za-z]:/", normalized))
         components = {part.lower() for part in normalized.split("/")}
         if is_absolute and (
